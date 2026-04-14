@@ -24,7 +24,7 @@ app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
 /*
-SESSION
+SESSION CONFIG
 */
 
 app.use(session({
@@ -37,14 +37,14 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 /*
-DISCORD LOGIN STRATEGY
+DISCORD OAUTH STRATEGY
 */
 
 passport.use(new DiscordStrategy({
     clientID: config.clientId,
     clientSecret: config.clientSecret,
     callbackURL: config.callbackURL,
-    scope: ['identify', 'guilds', 'guilds.members.read']
+    scope: ['identify']
 },
 (accessToken, refreshToken, profile, done) => {
 
@@ -57,7 +57,8 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 /*
-ROLE ACCESS CHECK (FIXED VERSION)
+ROLE ACCESS CHECK (FINAL RELIABLE VERSION)
+Uses bot token to fetch member roles directly
 */
 
 async function userHasAccess(req) {
@@ -65,17 +66,21 @@ async function userHasAccess(req) {
     try {
 
         const memberResponse = await fetch(
-            `https://discord.com/api/users/@me/guilds/${config.guildId}/member`,
+            `https://discord.com/api/guilds/${config.guildId}/members/${req.user.id}`,
             {
                 headers: {
-                    Authorization: `Bearer ${req.user.accessToken}`
+                    Authorization: `Bot ${config.token}`
                 }
             }
         );
 
         if (!memberResponse.ok) {
-            console.log("Member fetch failed:", await memberResponse.text());
+
+            console.log("Member lookup failed:",
+                await memberResponse.text());
+
             return false;
+
         }
 
         const member = await memberResponse.json();
@@ -90,28 +95,38 @@ async function userHasAccess(req) {
         );
 
         if (!rolesResponse.ok) {
-            console.log("Roles fetch failed:", await rolesResponse.text());
+
+            console.log("Role list fetch failed:",
+                await rolesResponse.text());
+
             return false;
+
         }
 
         const roles = await rolesResponse.json();
 
         if (!Array.isArray(roles)) {
+
             console.log("Invalid roles response:", roles);
+
             return false;
+
         }
 
         const allowedRoleIDs = roles
-            .filter(role => config.managerRoles.includes(role.name))
+            .filter(role =>
+                config.managerRoles.includes(role.name)
+            )
             .map(role => role.id);
 
-        return member.roles.some(role =>
-            allowedRoleIDs.includes(role)
+        return member.roles.some(roleID =>
+            allowedRoleIDs.includes(roleID)
         );
 
     } catch (err) {
 
         console.log("Role check error:", err);
+
         return false;
 
     }
@@ -127,7 +142,9 @@ async function checkAuth(req, res, next) {
     if (!req.isAuthenticated())
         return res.redirect('/');
 
-    if (!(await userHasAccess(req)))
+    const allowed = await userHasAccess(req);
+
+    if (!allowed)
         return res.send("Access denied");
 
     next();
@@ -152,7 +169,7 @@ app.get('/logout',
 );
 
 /*
-DASHBOARD
+DASHBOARD VIEW
 */
 
 app.get('/dashboard', checkAuth, (req, res) => {
@@ -178,7 +195,10 @@ app.get('/dashboard', checkAuth, (req, res) => {
 
                 const dayName =
                     new Date(`${y}-${m}-${d}`)
-                        .toLocaleDateString('en-GB', { weekday: 'long' });
+                        .toLocaleDateString(
+                            'en-GB',
+                            { weekday: 'long' }
+                        );
 
                 if (week[dayName])
                     week[dayName].push(b);
@@ -219,7 +239,10 @@ app.get('/calendar', (req, res) => {
 
                 const dayName =
                     new Date(`${y}-${m}-${d}`)
-                        .toLocaleDateString('en-GB', { weekday: 'long' });
+                        .toLocaleDateString(
+                            'en-GB',
+                            { weekday: 'long' }
+                        );
 
                 if (week[dayName])
                     week[dayName].push(b);
@@ -234,7 +257,7 @@ app.get('/calendar', (req, res) => {
 });
 
 /*
-API FOR BOT SYNC
+API ENDPOINT FOR BOT SYNC
 */
 
 app.get('/api/battles', (req, res) => {
@@ -242,7 +265,9 @@ app.get('/api/battles', (req, res) => {
     db.all("SELECT * FROM battles", [], (err, rows) => {
 
         if (err)
-            return res.status(500).json({ error: "Database error" });
+            return res.status(500).json({
+                error: "Database error"
+            });
 
         res.json(rows);
 
@@ -300,7 +325,8 @@ app.get('/edit/:id', checkAuth, (req, res) => {
     db.get(
         `SELECT * FROM battles WHERE id=?`,
         [req.params.id],
-        (err, battle) => res.render('edit', { battle })
+        (err, battle) =>
+            res.render('edit', { battle })
     );
 
 });
@@ -343,10 +369,12 @@ app.post('/edit/:id', checkAuth, (req, res) => {
 START SERVER
 */
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
 
-    console.log(`🔥 Ember Empire dashboard running on port ${PORT}`);
+    console.log(
+        `🔥 Ember Empire dashboard running on port ${PORT}`
+    );
 
 });
