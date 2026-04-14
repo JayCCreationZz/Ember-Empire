@@ -1,0 +1,4 @@
+node_modules
+emberempire.db
+.env
+config.json

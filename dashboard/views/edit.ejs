@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-900 text-white min-h-screen">
+
+<div class="max-w-4xl mx-auto p-6">
+
+<h1 class="text-2xl text-orange-400 mb-4">
+Edit Battle
+</h1>
+
+<form method="POST">
+
+<input name="host" value="<%= battle.host %>" class="bg-gray-700 p-2 rounded w-full mb-2">
+<input name="opponent" value="<%= battle.opponent %>" class="bg-gray-700 p-2 rounded w-full mb-2">
+<input name="date" value="<%= battle.date %>" class="bg-gray-700 p-2 rounded w-full mb-2">
+<input name="time" value="<%= battle.time %>" class="bg-gray-700 p-2 rounded w-full mb-2">
+<input name="poster" value="<%= battle.poster %>" class="bg-gray-700 p-2 rounded w-full mb-2">
+<input name="liveLink" value="<%= battle.liveLink %>" class="bg-gray-700 p-2 rounded w-full mb-4">
+
+<button class="bg-orange-500 px-6 py-2 rounded">
+Save Changes
+</button>
+
+</form>
+
+</div>
+
+</body>
+</html>
