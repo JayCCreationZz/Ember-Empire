@@ -12,7 +12,7 @@ const config = {
     clientSecret: process.env.CLIENT_SECRET,
     guildId: process.env.GUILD_ID,
     callbackURL: process.env.CALLBACK_URL,
-    managerRoles: ["Owner" , "Admin" ]
+    managerRoles: ["Owner", "Admin"]
 };
 
 const app = express();
@@ -57,42 +57,65 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 /*
-ROLE CHECK
+ROLE ACCESS CHECK (FIXED VERSION)
 */
 
 async function userHasAccess(req) {
 
-    const memberResponse = await fetch(
-        `https://discord.com/api/users/@me/guilds/${config.guildId}/member`,
-        {
-            headers: {
-                Authorization: `Bearer ${req.user.accessToken}`
+    try {
+
+        const memberResponse = await fetch(
+            `https://discord.com/api/users/@me/guilds/${config.guildId}/member`,
+            {
+                headers: {
+                    Authorization: `Bearer ${req.user.accessToken}`
+                }
             }
+        );
+
+        if (!memberResponse.ok) {
+            console.log("Member fetch failed:", await memberResponse.text());
+            return false;
         }
-    );
 
-    if (!memberResponse.ok) return false;
+        const member = await memberResponse.json();
 
-    const member = await memberResponse.json();
-
-    const rolesResponse = await fetch(
-        `https://discord.com/api/guilds/${config.guildId}/roles`,
-        {
-            headers: {
-                Authorization: `Bot ${config.token}`
+        const rolesResponse = await fetch(
+            `https://discord.com/api/guilds/${config.guildId}/roles`,
+            {
+                headers: {
+                    Authorization: `Bot ${config.token}`
+                }
             }
+        );
+
+        if (!rolesResponse.ok) {
+            console.log("Roles fetch failed:", await rolesResponse.text());
+            return false;
         }
-    );
 
-    const roles = await rolesResponse.json();
+        const roles = await rolesResponse.json();
 
-    const allowedRoleIDs = roles
-        .filter(role => config.managerRoles.includes(role.name))
-        .map(role => role.id);
+        if (!Array.isArray(roles)) {
+            console.log("Invalid roles response:", roles);
+            return false;
+        }
 
-    return member.roles.some(role =>
-        allowedRoleIDs.includes(role)
-    );
+        const allowedRoleIDs = roles
+            .filter(role => config.managerRoles.includes(role.name))
+            .map(role => role.id);
+
+        return member.roles.some(role =>
+            allowedRoleIDs.includes(role)
+        );
+
+    } catch (err) {
+
+        console.log("Role check error:", err);
+        return false;
+
+    }
+
 }
 
 /*
@@ -108,6 +131,7 @@ async function checkAuth(req, res, next) {
         return res.send("Access denied");
 
     next();
+
 }
 
 /*
@@ -150,52 +174,59 @@ app.get('/dashboard', checkAuth, (req, res) => {
 
             battles.forEach(b => {
 
-                const [d,m,y] = b.date.split('/');
+                const [d, m, y] = b.date.split('/');
 
                 const dayName =
                     new Date(`${y}-${m}-${d}`)
-                    .toLocaleDateString('en-GB',{weekday:'long'});
+                        .toLocaleDateString('en-GB', { weekday: 'long' });
 
                 if (week[dayName])
                     week[dayName].push(b);
 
             });
 
-            res.render('dashboard',{battles,week});
+            res.render('dashboard', { battles, week });
 
         }
     );
+
 });
 
 /*
 PUBLIC CALENDAR
 */
 
-app.get('/calendar',(req,res)=>{
+app.get('/calendar', (req, res) => {
 
     db.all(
         "SELECT * FROM battles ORDER BY date,time",
         [],
-        (err,battles)=>{
+        (err, battles) => {
 
-            const week={
-                Monday:[],Tuesday:[],Wednesday:[],
-                Thursday:[],Friday:[],Saturday:[],Sunday:[]
+            const week = {
+                Monday: [],
+                Tuesday: [],
+                Wednesday: [],
+                Thursday: [],
+                Friday: [],
+                Saturday: [],
+                Sunday: []
             };
 
-            battles.forEach(b=>{
+            battles.forEach(b => {
 
-                const [d,m,y]=b.date.split('/');
+                const [d, m, y] = b.date.split('/');
 
                 const dayName =
                     new Date(`${y}-${m}-${d}`)
-                    .toLocaleDateString('en-GB',{weekday:'long'});
+                        .toLocaleDateString('en-GB', { weekday: 'long' });
 
-                if(week[dayName]) week[dayName].push(b);
+                if (week[dayName])
+                    week[dayName].push(b);
 
             });
 
-            res.render('calendar',{week});
+            res.render('calendar', { week });
 
         }
     );
@@ -206,12 +237,12 @@ app.get('/calendar',(req,res)=>{
 API FOR BOT SYNC
 */
 
-app.get('/api/battles',(req,res)=>{
+app.get('/api/battles', (req, res) => {
 
-    db.all("SELECT * FROM battles",[],(err,rows)=>{
+    db.all("SELECT * FROM battles", [], (err, rows) => {
 
-        if(err)
-            return res.status(500).json({error:"Database error"});
+        if (err)
+            return res.status(500).json({ error: "Database error" });
 
         res.json(rows);
 
@@ -220,10 +251,10 @@ app.get('/api/battles',(req,res)=>{
 });
 
 /*
-CREATE
+CREATE BATTLE
 */
 
-app.post('/create',checkAuth,(req,res)=>{
+app.post('/create', checkAuth, (req, res) => {
 
     const {
         host,
@@ -232,13 +263,13 @@ app.post('/create',checkAuth,(req,res)=>{
         time,
         poster,
         liveLink
-    }=req.body;
+    } = req.body;
 
     db.run(
         `INSERT INTO battles
         (host,opponent,date,time,poster,liveLink)
         VALUES (?,?,?,?,?,?)`,
-        [host,opponent,date,time,poster,liveLink]
+        [host, opponent, date, time, poster, liveLink]
     );
 
     res.redirect('/dashboard');
@@ -246,10 +277,10 @@ app.post('/create',checkAuth,(req,res)=>{
 });
 
 /*
-DELETE
+DELETE BATTLE
 */
 
-app.post('/delete/:id',checkAuth,(req,res)=>{
+app.post('/delete/:id', checkAuth, (req, res) => {
 
     db.run(
         `DELETE FROM battles WHERE id=?`,
@@ -264,21 +295,21 @@ app.post('/delete/:id',checkAuth,(req,res)=>{
 EDIT VIEW
 */
 
-app.get('/edit/:id',checkAuth,(req,res)=>{
+app.get('/edit/:id', checkAuth, (req, res) => {
 
     db.get(
         `SELECT * FROM battles WHERE id=?`,
         [req.params.id],
-        (err,battle)=>res.render('edit',{battle})
+        (err, battle) => res.render('edit', { battle })
     );
 
 });
 
 /*
-UPDATE
+UPDATE BATTLE
 */
 
-app.post('/edit/:id',checkAuth,(req,res)=>{
+app.post('/edit/:id', checkAuth, (req, res) => {
 
     const {
         host,
@@ -287,7 +318,7 @@ app.post('/edit/:id',checkAuth,(req,res)=>{
         time,
         poster,
         liveLink
-    }=req.body;
+    } = req.body;
 
     db.run(
         `UPDATE battles
@@ -314,7 +345,7 @@ START SERVER
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT,()=>{
+app.listen(PORT, () => {
 
     console.log(`🔥 Ember Empire dashboard running on port ${PORT}`);
 
