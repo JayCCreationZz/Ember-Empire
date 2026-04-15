@@ -12,30 +12,30 @@
         }
 
         h1 {
-            color: #ff6a00;
-        }
-
-        .day {
-            margin-bottom: 25px;
-            padding: 15px;
-            background: #1a1a1a;
-            border-radius: 10px;
+            color: orange;
         }
 
         .battle {
-            margin: 8px 0;
+            background: #1f1f1f;
             padding: 10px;
-            background: #262626;
+            margin: 8px 0;
             border-radius: 6px;
         }
 
-        a {
-            color: orange;
-            text-decoration: none;
+        input {
+            padding: 5px;
+            margin: 3px;
         }
 
-        .logout {
-            float: right;
+        button {
+            padding: 6px 10px;
+            background: orange;
+            border: none;
+            cursor: pointer;
+        }
+
+        form {
+            margin-bottom: 20px;
         }
     </style>
 </head>
@@ -44,60 +44,115 @@
 
 <h1>
 🔥 Ember Empire Dashboard
-<a class="logout" href="/logout">Logout</a>
+<a href="/logout" style="float:right;color:white;">Logout</a>
 </h1>
 
-<% if (!week) { %>
-    <p>No schedule data found.</p>
-<% } else { %>
+<p>
+Logged in as:
+<strong><%= roleLevel.toUpperCase() %></strong>
+</p>
 
-    <% Object.keys(week).forEach(day => { %>
 
-        <div class="day">
-            <h2><%= day %></h2>
+<!-- CREATE FORM (Owner + Admin only) -->
 
-            <% if (!week[day] || week[day].length === 0) { %>
+<% if (roleLevel === "owner" || roleLevel === "admin") { %>
 
-                <p>No battles scheduled</p>
+<h2>Create Battle</h2>
 
-            <% } else { %>
+<form action="/create" method="POST">
 
-                <% week[day].forEach(battle => { %>
+    Host:
+    <input name="host" required>
 
-                    <div class="battle">
+    Opponent:
+    <input name="opponent" required>
 
-                        <strong>
-                            <%= battle.host || "Unknown Host" %>
-                            vs
-                            <%= battle.opponent || "Unknown Opponent" %>
-                        </strong>
+    Date (DD/MM/YYYY):
+    <input name="date" required>
 
-                        <br>
+    Time (HH:MM):
+    <input name="time" required>
 
-                        Date:
-                        <%= battle.date || "Unknown" %>
+    Poster URL:
+    <input name="poster">
 
-                        Time:
-                        <%= battle.time || "Unknown" %>
+    Live Link:
+    <input name="liveLink">
 
-                        <% if (battle.liveLink) { %>
-                            <br>
-                            <a href="<%= battle.liveLink %>" target="_blank">
-                                Watch Live
-                            </a>
-                        <% } %>
+    <button type="submit">Create</button>
 
-                    </div>
-
-                <% }) %>
-
-            <% } %>
-
-        </div>
-
-    <% }) %>
+</form>
 
 <% } %>
+
+
+<h2>Scheduled Battles</h2>
+
+<% battles.forEach(battle => { %>
+
+<div class="battle">
+
+<strong>
+<%= battle.host %> vs <%= battle.opponent %>
+</strong>
+
+<br>
+Date: <%= battle.date %>
+<br>
+Time: <%= battle.time %>
+
+<% if (battle.liveLink) { %>
+<br>
+<a href="<%= battle.liveLink %>" target="_blank">
+Watch Live
+</a>
+<% } %>
+
+
+<!-- EDIT BUTTON (Owner + Admin) -->
+
+<% if (roleLevel === "owner" || roleLevel === "admin") { %>
+
+<form action="/edit/<%= battle.id %>" method="POST">
+
+    Host:
+    <input name="host" value="<%= battle.host %>">
+
+    Opponent:
+    <input name="opponent" value="<%= battle.opponent %>">
+
+    Date:
+    <input name="date" value="<%= battle.date %>">
+
+    Time:
+    <input name="time" value="<%= battle.time %>">
+
+    Poster:
+    <input name="poster" value="<%= battle.poster %>">
+
+    Live:
+    <input name="liveLink" value="<%= battle.liveLink %>">
+
+    <button type="submit">Update</button>
+
+</form>
+
+<% } %>
+
+
+<!-- DELETE BUTTON (Owner only) -->
+
+<% if (roleLevel === "owner") { %>
+
+<form action="/delete/<%= battle.id %>" method="POST">
+    <button type="submit">Delete</button>
+</form>
+
+<% } %>
+
+</div>
+
+<% }) %>
 
 </body>
 </html>
