@@ -12,7 +12,7 @@ const db = require("../database");
 const app = express();
 
 /*
-ENV CONFIG (Railway variables)
+ROLE CONFIG
 */
 const config = {
   token: process.env.TOKEN,
@@ -27,7 +27,7 @@ const config = {
 };
 
 /*
-UPLOAD TEMP STORAGE
+UPLOAD HANDLER
 */
 const upload = multer({
   dest: path.join(
@@ -37,9 +37,10 @@ const upload = multer({
 });
 
 /*
-AUTO RESIZE POSTERS TO 1080x1080
+AUTO RESIZE POSTERS
 */
 async function processPoster(file) {
+
   if (!file) return null;
 
   const postersDir = path.join(
@@ -76,9 +77,6 @@ app.set(
   path.join(process.cwd(), "dashboard/views")
 );
 
-/*
-STATIC FILES
-*/
 app.use(
   express.static(
     path.join(process.cwd(), "dashboard/public")
@@ -108,7 +106,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 /*
-DISCORD LOGIN STRATEGY
+DISCORD LOGIN
 */
 passport.use(
   new DiscordStrategy(
@@ -119,83 +117,70 @@ passport.use(
       scope: ["identify"]
     },
     (accessToken, refreshToken, profile, done) => {
-      profile.accessToken = accessToken;
       return done(null, profile);
     }
   )
 );
 
-passport.serializeUser((user, done) =>
-  done(null, user)
-);
-
-passport.deserializeUser((obj, done) =>
-  done(null, obj)
-);
+passport.serializeUser((u, d) => d(null, u));
+passport.deserializeUser((o, d) => d(null, o));
 
 /*
-ROLE DETECTION
+ROLE CHECK
 */
 async function getUserRoleLevel(req) {
-  try {
-    if (!req.user?.id) return "none";
 
-    const response = await fetch(
-      `https://discord.com/api/guilds/${config.guildId}/members/${req.user.id}`,
-      {
-        headers: {
-          Authorization: `Bot ${config.token}`
-        }
+  if (!req.user?.id) return "none";
+
+  const response = await fetch(
+    `https://discord.com/api/guilds/${config.guildId}/members/${req.user.id}`,
+    {
+      headers: {
+        Authorization: `Bot ${config.token}`
       }
-    );
+    }
+  );
 
-    if (!response.ok) return "none";
+  if (!response.ok) return "none";
 
-    const member = await response.json();
+  const member = await response.json();
 
-    if (!member.roles) return "none";
-
-    if (
-      member.roles.some(r =>
-        config.ownerRoles.includes(r)
-      )
+  if (
+    member.roles.some(r =>
+      config.ownerRoles.includes(r)
     )
-      return "owner";
+  )
+    return "owner";
 
-    if (
-      member.roles.some(r =>
-        config.adminRoles.includes(r)
-      )
+  if (
+    member.roles.some(r =>
+      config.adminRoles.includes(r)
     )
-      return "admin";
+  )
+    return "admin";
 
-    if (
-      member.roles.some(r =>
-        config.memberRoles.includes(r)
-      )
+  if (
+    member.roles.some(r =>
+      config.memberRoles.includes(r)
     )
-      return "member";
+  )
+    return "member";
 
-    return "none";
-  } catch (err) {
-    console.log("Role detection error:", err);
-    return "none";
-  }
+  return "none";
 }
 
 /*
-AUTH CHECK
+AUTH MIDDLEWARE
 */
 async function checkAuth(req, res, next) {
+
   if (!req.isAuthenticated())
     return res.redirect("/");
 
-  const roleLevel = await getUserRoleLevel(req);
+  req.roleLevel = await getUserRoleLevel(req);
 
-  if (roleLevel === "none")
+  if (req.roleLevel === "none")
     return res.send("Access denied");
-
-  req.roleLevel = roleLevel;
 
   next();
 }
@@ -221,35 +206,33 @@ app.get(
     res.redirect("/dashboard")
 );
 
-app.get("/logout", (req, res) => {
-  req.logout(() => res.redirect("/"));
-});
+app.get("/logout", (req, res) =>
+  req.logout(() => res.redirect("/"))
+);
 
 /*
-DASHBOARD (SHOW ALL BATTLES — INCLUDING POSTED ONES)
-IMPORTANT: no filtering by posted status
+DASHBOARD
+SHOW ALL BATTLES
 */
-app.get(
-  "/dashboard",
-  checkAuth,
-  (req, res) => {
-    db.all(
-      "SELECT * FROM battles ORDER BY date, time",
-      [],
-      (err, battles) => {
-        if (err)
-          return res
-            .status(500)
-            .send("Database error");
+app.get("/dashboard", checkAuth, (req, res) => {
 
-        res.render("dashboard", {
-          battles: battles || [],
-          roleLevel: req.roleLevel
-        });
-      }
-    );
-  }
-);
+  db.all(
+    "SELECT * FROM battles ORDER BY date, time",
+    [],
+    (err, battles) => {
+
+      if (err)
+        return res.send("Database error");
+
+      res.render("dashboard", {
+        battles,
+        roleLevel: req.roleLevel
+      });
+
+    }
+  );
+
+});
 
 /*
 CREATE BATTLE
@@ -260,12 +243,10 @@ app.post(
   upload.single("poster"),
   async (req, res) => {
 
-    if (
-      !["owner", "admin"].includes(
-        req.roleLevel
-      )
-    )
+    if (!["owner", "admin"].includes(req.roleLevel))
       return res.send("Permission denied");
+
+    const poster = await processPoster(req.file);
 
     const {
       host,
@@ -275,14 +256,10 @@ app.post(
       liveLink
     } = req.body;
 
-    const poster = await processPoster(
-      req.file
-    );
-
     db.run(
       `INSERT INTO battles
-       (host, opponent, date, time, poster, liveLink)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      (host, opponent, date, time, poster, liveLink)
+      VALUES (?, ?, ?, ?, ?, ?)`,
       [
         host,
         opponent,
@@ -294,89 +271,30 @@ app.post(
     );
 
     res.redirect("/dashboard");
+
   }
 );
 
 /*
-EDIT BATTLE
+DELETE BATTLE
+ADMIN + OWNER ONLY
 */
-app.post(
-  "/edit/:id",
-  checkAuth,
-  upload.single("poster"),
-  async (req, res) => {
+app.post("/delete/:id", checkAuth, (req, res) => {
 
-    if (
-      !["owner", "admin"].includes(
-        req.roleLevel
-      )
-    )
-      return res.send("Permission denied");
+  if (!["owner", "admin"].includes(req.roleLevel))
+    return res.send("Permission denied");
 
-    const {
-      host,
-      opponent,
-      date,
-      time,
-      liveLink
-    } = req.body;
+  db.run(
+    "DELETE FROM battles WHERE id=?",
+    [req.params.id]
+  );
 
-    let poster =
-      req.body.posterExisting;
+  res.redirect("/dashboard");
 
-    if (req.file) {
-      poster = await processPoster(
-        req.file
-      );
-    }
-
-    db.run(
-      `UPDATE battles
-       SET host=?, opponent=?, date=?, time=?, poster=?, liveLink=?
-       WHERE id=?`,
-      [
-        host,
-        opponent,
-        date,
-        time,
-        poster,
-        liveLink,
-        req.params.id
-      ]
-    );
-
-    res.redirect("/dashboard");
-  }
-);
+});
 
 /*
-DELETE BATTLE (ADMIN + OWNER ONLY)
-*/
-app.post(
-  "/delete/:id",
-  checkAuth,
-  (req, res) => {
-
-    if (
-      !["owner", "admin"].includes(
-        req.roleLevel
-      )
-    )
-      return res.send(
-        "Only Admin or Owner can delete battles"
-      );
-
-    db.run(
-      `DELETE FROM battles WHERE id=?`,
-      [req.params.id]
-    );
-
-    res.redirect("/dashboard");
-  }
-);
-
-/*
-PUBLIC CALENDAR (MEMBERS INCLUDED)
+PUBLIC CALENDAR
 */
 app.get("/calendar", (req, res) => {
 
@@ -386,13 +304,9 @@ app.get("/calendar", (req, res) => {
     (err, battles) => {
 
       if (err)
-        return res.send(
-          "Database error"
-        );
+        return res.send("Database error");
 
-      res.render("calendar", {
-        battles: battles || []
-      });
+      res.render("calendar", { battles });
 
     }
   );
@@ -400,35 +314,12 @@ app.get("/calendar", (req, res) => {
 });
 
 /*
-API FOR BOT SYNC
+SERVER START
 */
-app.get("/api/battles", (req, res) => {
+const PORT = process.env.PORT || 8080;
 
-  db.all(
-    "SELECT * FROM battles",
-    [],
-    (err, rows) => {
-
-      if (err)
-        return res.status(500).json({
-          error: "Database error"
-        });
-
-      res.json(rows);
-
-    }
-  );
-
-});
-
-/*
-START SERVER
-*/
-const PORT =
-  process.env.PORT || 8080;
-
-app.listen(PORT, () => {
+app.listen(PORT, () =>
   console.log(
     `🔥 Ember Empire dashboard running on port ${PORT}`
-  );
-});
+  )
+);

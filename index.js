@@ -2,11 +2,6 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const cron = require("node-cron");
 const db = require("./database");
 
-require("dotenv").config();
-
-/*
-CREATE DISCORD CLIENT
-*/
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -15,7 +10,8 @@ const client = new Client({
 });
 
 /*
-FORMAT DATE HELPERS
+FORMAT DATE
+DD/MM/YYYY
 */
 function getCurrentDate() {
   const now = new Date();
@@ -29,6 +25,10 @@ function getCurrentDate() {
   );
 }
 
+/*
+FORMAT TIME
+HH:MM
+*/
 function getCurrentTime() {
   const now = new Date();
 
@@ -62,7 +62,7 @@ async function postBattle(channel, battle) {
 }
 
 /*
-CHECK SCHEDULED BATTLES EVERY MINUTE
+CHECK DATABASE EVERY MINUTE
 */
 async function checkBattles() {
 
@@ -70,27 +70,27 @@ async function checkBattles() {
   const currentTime = getCurrentTime();
 
   db.all(
-    `SELECT * FROM battles WHERE posted = 0`,
+    "SELECT * FROM battles WHERE posted = 0",
     [],
-    async (err, rows) => {
+    async (err, battles) => {
 
       if (err) {
-        console.error("Database error:", err);
+        console.error(err);
         return;
       }
 
-      if (!rows.length) return;
+      if (!battles.length) return;
 
       const channel = await client.channels.fetch(
         process.env.BATTLE_CHANNEL_ID
       );
 
       if (!channel) {
-        console.error("Battle channel not found");
+        console.error("❌ Channel not found");
         return;
       }
 
-      for (const battle of rows) {
+      for (const battle of battles) {
 
         if (
           battle.date === currentDate &&
@@ -100,7 +100,7 @@ async function checkBattles() {
           await postBattle(channel, battle);
 
           db.run(
-            `UPDATE battles SET posted = 1 WHERE id = ?`,
+            "UPDATE battles SET posted = 1 WHERE id = ?",
             [battle.id]
           );
 
@@ -121,9 +121,6 @@ client.once("clientReady", () => {
     `🔥 Ember Empire Battle Bot online as ${client.user.tag}`
   );
 
-  /*
-  RUN CHECK EVERY MINUTE
-  */
   cron.schedule("* * * * *", () => {
     checkBattles();
   });
@@ -133,4 +130,10 @@ client.once("clientReady", () => {
 /*
 LOGIN
 */
-client.login(process.env.TOKEN);
+client.login(process.env.TOKEN)
+  .then(() =>
+    console.log("✅ Discord login successful")
+  )
+  .catch(err =>
+    console.error("❌ Discord login failed:", err)
+  );
