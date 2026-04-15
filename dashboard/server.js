@@ -13,7 +13,7 @@ const config = {
     guildId: process.env.GUILD_ID,
     callbackURL: process.env.CALLBACK_URL,
 
-    // ✅ ROLE IDs WITH DASHBOARD ACCESS
+    // ✅ ROLE IDs ALLOWED INTO DASHBOARD
     managerRoles: [
         "1465436891238367284",
         "1493636042354331779"
@@ -29,7 +29,7 @@ app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
 /*
-IMPORTANT FOR RAILWAY SESSION SUPPORT
+IMPORTANT FOR RAILWAY (REVERSE PROXY SUPPORT)
 */
 app.set('trust proxy', 1);
 
@@ -52,7 +52,6 @@ app.use(passport.session());
 /*
 DISCORD LOGIN STRATEGY
 */
-
 passport.use(new DiscordStrategy({
     clientID: config.clientId,
     clientSecret: config.clientSecret,
@@ -70,15 +69,14 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 /*
-ROLE ACCESS CHECK (SAFE VERSION)
+ROLE ACCESS CHECK (ROLE-ID VERSION)
 */
-
 async function userHasAccess(req) {
 
     try {
 
         if (!req.user || !req.user.id) {
-            console.log("⚠️ No session user detected");
+            console.log("⚠️ No authenticated session user");
             return false;
         }
 
@@ -92,19 +90,14 @@ async function userHasAccess(req) {
         );
 
         if (!response.ok) {
-
-            const err = await response.text();
-            console.log("❌ Discord member lookup failed:", err);
-
+            console.log("❌ Discord member lookup failed:", await response.text());
             return false;
         }
 
         const member = await response.json();
 
         if (!member.roles) {
-
-            console.log("❌ Roles missing from Discord response:", member);
-
+            console.log("❌ Roles missing from Discord response");
             return false;
         }
 
@@ -112,11 +105,11 @@ async function userHasAccess(req) {
             config.managerRoles.includes(roleID)
         );
 
-    } catch (error) {
+    } catch (err) {
 
-        console.log("❌ Role check crashed:", error);
-
+        console.log("❌ Role check crashed:", err);
         return false;
+
     }
 
 }
@@ -124,7 +117,6 @@ async function userHasAccess(req) {
 /*
 AUTH MIDDLEWARE
 */
-
 async function checkAuth(req, res, next) {
 
     if (!req.isAuthenticated())
@@ -142,7 +134,6 @@ async function checkAuth(req, res, next) {
 /*
 LOGIN ROUTES
 */
-
 app.get('/', (req, res) => res.render('login'));
 
 app.get('/login', passport.authenticate('discord'));
@@ -157,48 +148,65 @@ app.get('/logout',
 );
 
 /*
-DASHBOARD VIEW
+DASHBOARD ROUTE (SAFE VERSION – FIXES 500 ERRORS)
 */
-
 app.get('/dashboard', checkAuth, (req, res) => {
 
     db.all(
-        "SELECT * FROM battles ORDER BY date,time",
+        "SELECT * FROM battles ORDER BY date, time",
         [],
         (err, battles) => {
 
             if (err) {
-                console.log("❌ Database error:", err);
-                return res.send("Database error");
+                console.log("❌ Database read error:", err);
+                return res.status(500).send("Database error loading battles");
             }
 
-            const week = {
-                Monday: [],
-                Tuesday: [],
-                Wednesday: [],
-                Thursday: [],
-                Friday: [],
-                Saturday: [],
-                Sunday: []
-            };
+            try {
 
-            battles.forEach(b => {
+                const week = {
+                    Monday: [],
+                    Tuesday: [],
+                    Wednesday: [],
+                    Thursday: [],
+                    Friday: [],
+                    Saturday: [],
+                    Sunday: []
+                };
 
-                const [d, m, y] = b.date.split('/');
+                (battles || []).forEach(b => {
 
-                const dayName =
-                    new Date(`${y}-${m}-${d}`)
-                        .toLocaleDateString(
-                            'en-GB',
-                            { weekday: 'long' }
-                        );
+                    if (!b.date) return;
 
-                if (week[dayName])
-                    week[dayName].push(b);
+                    const parts = b.date.split('/');
 
-            });
+                    if (parts.length !== 3) return;
 
-            res.render('dashboard', { battles, week });
+                    const [d, m, y] = parts;
+
+                    const dayName =
+                        new Date(`${y}-${m}-${d}`)
+                            .toLocaleDateString(
+                                'en-GB',
+                                { weekday: 'long' }
+                            );
+
+                    if (week[dayName])
+                        week[dayName].push(b);
+
+                });
+
+                res.render('dashboard', {
+                    battles: battles || [],
+                    week
+                });
+
+            } catch (renderErr) {
+
+                console.log("❌ Dashboard render error:", renderErr);
+                res.status(500).send("Dashboard render failed");
+
+            }
 
         }
     );
@@ -206,13 +214,12 @@ app.get('/dashboard', checkAuth, (req, res) => {
 });
 
 /*
-PUBLIC CALENDAR (VISIBLE TO EVERYONE)
+PUBLIC CALENDAR (VISIBLE WITHOUT LOGIN)
 */
-
 app.get('/calendar', (req, res) => {
 
     db.all(
-        "SELECT * FROM battles ORDER BY date,time",
+        "SELECT * FROM battles ORDER BY date, time",
         [],
         (err, battles) => {
 
@@ -229,9 +236,15 @@ app.get('/calendar', (req, res) => {
                 Sunday: []
             };
 
-            battles.forEach(b => {
+            (battles || []).forEach(b => {
 
-                const [d, m, y] = b.date.split('/');
+                if (!b.date) return;
+
+                const parts = b.date.split('/');
+
+                if (parts.length !== 3) return;
+
+                const [d, m, y] = parts;
 
                 const dayName =
                     new Date(`${y}-${m}-${d}`)
@@ -253,9 +266,8 @@ app.get('/calendar', (req, res) => {
 });
 
 /*
-API ENDPOINT FOR BOT SYNC
+API FOR BOT SYNC
 */
-
 app.get('/api/battles', (req, res) => {
 
     db.all("SELECT * FROM battles", [], (err, rows) => {
@@ -274,13 +286,10 @@ app.get('/api/battles', (req, res) => {
 /*
 START SERVER
 */
-
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
 
-    console.log(
-        `🔥 Ember Empire dashboard running on port ${PORT}`
-    );
+    console.log(`🔥 Ember Empire dashboard running on port ${PORT}`);
 
 });
