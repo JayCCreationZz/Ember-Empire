@@ -31,62 +31,40 @@ body {
     gap: 14px;
 }
 
-/* 🔥 EMBER GLOW LOGO */
+/* EMBER LOGO */
 
 .logo {
     height: 52px;
-
-    filter:
-        drop-shadow(0 0 4px rgba(255,120,0,0.6));
-
-    animation:
-        emberGlow 3s ease-in-out infinite alternate;
-
-    transition:
-        transform 0.3s ease,
-        filter 0.3s ease;
+    animation: emberGlow 3s ease-in-out infinite alternate;
 }
 
 .logo:hover {
-
     transform: scale(1.08);
-
-    filter:
-        drop-shadow(0 0 6px rgba(255,140,0,0.8))
-        drop-shadow(0 0 16px rgba(255,80,0,0.6))
-        drop-shadow(0 0 28px rgba(255,40,0,0.5));
 }
 
 @keyframes emberGlow {
 
     0% {
         filter:
-            drop-shadow(0 0 3px rgba(255,120,0,0.4))
-            drop-shadow(0 0 6px rgba(255,60,0,0.3));
+        drop-shadow(0 0 4px rgba(255,120,0,0.4));
     }
 
     50% {
         filter:
-            drop-shadow(0 0 8px rgba(255,140,0,0.7))
-            drop-shadow(0 0 14px rgba(255,80,0,0.5));
+        drop-shadow(0 0 12px rgba(255,140,0,0.7));
     }
 
     100% {
         filter:
-            drop-shadow(0 0 4px rgba(255,90,0,0.5))
-            drop-shadow(0 0 10px rgba(255,40,0,0.4));
+        drop-shadow(0 0 6px rgba(255,80,0,0.5));
     }
 
 }
-
-/* TITLE */
 
 .header h1 {
     margin: 0;
     color: #ff7a18;
 }
-
-/* ROLE BADGE */
 
 .role-badge {
     padding: 6px 12px;
@@ -145,20 +123,44 @@ button {
 /* BATTLE CARD */
 
 .battle-card {
+    display: flex;
+    gap: 20px;
     background: #1c1c1c;
     border-radius: 10px;
     padding: 18px;
-    margin-top: 15px;
+    margin-top: 18px;
 }
 
-/* META TEXT */
+/* POSTER IMAGE */
+
+.poster {
+    width: 140px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+/* BATTLE CONTENT */
+
+.battle-content {
+    flex: 1;
+}
 
 .meta {
     opacity: .7;
     margin-top: 5px;
 }
 
-/* LOGOUT LINK */
+.live-link {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: #ff7a18;
+    border-radius: 5px;
+    text-decoration: none;
+    color: white;
+}
+
+/* LOGOUT */
 
 .logout {
     color: white;
@@ -170,8 +172,6 @@ button {
 </head>
 
 <body>
-
-<!-- HEADER -->
 
 <div class="header">
 
@@ -195,9 +195,9 @@ Role: <%= roleLevel.toUpperCase() %>
 
 </div>
 
-<!-- MAIN CONTENT -->
 
 <div class="container">
+
 
 <% if(roleLevel === "owner" || roleLevel === "admin"){ %>
 
@@ -233,6 +233,16 @@ Role: <%= roleLevel.toUpperCase() %>
 
 <div class="battle-card">
 
+
+<% if(battle.poster){ %>
+
+<img src="<%= battle.poster %>" class="poster">
+
+<% } %>
+
+
+<div class="battle-content">
+
 <strong>
 <%= battle.host %> vs <%= battle.opponent %>
 </strong>
@@ -241,11 +251,12 @@ Role: <%= roleLevel.toUpperCase() %>
 📅 <%= battle.date %> &nbsp;&nbsp; ⏰ <%= battle.time %>
 </div>
 
+
 <% if(battle.liveLink){ %>
 
-<div class="meta">
-🔗 <a href="<%= battle.liveLink %>" target="_blank">Open Stream</a>
-</div>
+<a href="<%= battle.liveLink %>" target="_blank" class="live-link">
+Watch Live
+</a>
 
 <% } %>
 
@@ -281,6 +292,9 @@ Delete Battle
 </form>
 
 <% } %>
+
+
+</div>
 
 </div>
 
