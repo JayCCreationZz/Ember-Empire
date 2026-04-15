@@ -2,7 +2,11 @@ const express = require("express");
 const session = require("express-session");
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
+const multer = require("multer");
+const sharp = require("sharp");
+const fs = require("fs");
 const path = require("path");
+
 const db = require("../database");
 
 const app = express();
@@ -23,13 +27,57 @@ const config = {
 };
 
 /*
+TEMP UPLOAD STORAGE
+*/
+const upload = multer({
+  dest: path.join(
+    process.cwd(),
+    "dashboard/public/posters/tmp"
+  )
+});
+
+/*
+AUTO RESIZE POSTERS TO 1080x1080
+*/
+async function processPoster(file) {
+  if (!file) return null;
+
+  const postersDir = path.join(
+    process.cwd(),
+    "dashboard/public/posters"
+  );
+
+  const filename =
+    Date.now() +
+    "-" +
+    file.originalname.replace(/\s+/g, "_");
+
+  const outputPath = path.join(postersDir, filename);
+
+  await sharp(file.path)
+    .resize(1080, 1080, {
+      fit: "cover",
+      position: "centre"
+    })
+    .jpeg({ quality: 90 })
+    .toFile(outputPath);
+
+  fs.unlinkSync(file.path);
+
+  return "/posters/" + filename;
+}
+
+/*
 VIEW ENGINE
 */
 app.set("view engine", "ejs");
-app.set("views", path.join(process.cwd(), "dashboard/views"));
+app.set(
+  "views",
+  path.join(process.cwd(), "dashboard/views")
+);
 
 /*
-STATIC FILES (LOGO + FAVICON SUPPORT)
+STATIC FILE SERVING
 */
 app.use(
   express.static(
@@ -40,7 +88,7 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 
 /*
-SESSION CONFIG (Required for Railway HTTPS)
+SESSION CONFIG
 */
 app.set("trust proxy", 1);
 
@@ -77,11 +125,16 @@ passport.use(
   )
 );
 
-passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((obj, done) => done(null, obj));
+passport.serializeUser((user, done) =>
+  done(null, user)
+);
+
+passport.deserializeUser((obj, done) =>
+  done(null, obj)
+);
 
 /*
-ROLE DETECTION FUNCTION
+ROLE DETECTION
 */
 async function getUserRoleLevel(req) {
   try {
@@ -96,26 +149,34 @@ async function getUserRoleLevel(req) {
       }
     );
 
-    if (!response.ok) {
-      console.log("Discord role lookup failed");
-      return "none";
-    }
+    if (!response.ok) return "none";
 
     const member = await response.json();
 
     if (!member.roles) return "none";
 
-    if (member.roles.some(r => config.ownerRoles.includes(r)))
+    if (
+      member.roles.some(r =>
+        config.ownerRoles.includes(r)
+      )
+    )
       return "owner";
 
-    if (member.roles.some(r => config.adminRoles.includes(r)))
+    if (
+      member.roles.some(r =>
+        config.adminRoles.includes(r)
+      )
+    )
       return "admin";
 
-    if (member.roles.some(r => config.memberRoles.includes(r)))
+    if (
+      member.roles.some(r =>
+        config.memberRoles.includes(r)
+      )
+    )
       return "member";
 
     return "none";
-
   } catch (err) {
     console.log("Role detection error:", err);
     return "none";
@@ -123,10 +184,11 @@ async function getUserRoleLevel(req) {
 }
 
 /*
-AUTH MIDDLEWARE
+AUTH CHECK
 */
 async function checkAuth(req, res, next) {
-  if (!req.isAuthenticated()) return res.redirect("/");
+  if (!req.isAuthenticated())
+    return res.redirect("/");
 
   const roleLevel = await getUserRoleLevel(req);
 
@@ -141,14 +203,22 @@ async function checkAuth(req, res, next) {
 /*
 LOGIN ROUTES
 */
-app.get("/", (req, res) => res.render("login"));
+app.get("/", (req, res) =>
+  res.render("login")
+);
 
-app.get("/login", passport.authenticate("discord"));
+app.get(
+  "/login",
+  passport.authenticate("discord")
+);
 
 app.get(
   "/auth/callback",
-  passport.authenticate("discord", { failureRedirect: "/" }),
-  (req, res) => res.redirect("/dashboard")
+  passport.authenticate("discord", {
+    failureRedirect: "/"
+  }),
+  (req, res) =>
+    res.redirect("/dashboard")
 );
 
 app.get("/logout", (req, res) => {
@@ -156,132 +226,196 @@ app.get("/logout", (req, res) => {
 });
 
 /*
-DASHBOARD ROUTE
+DASHBOARD VIEW
 */
-app.get("/dashboard", checkAuth, (req, res) => {
+app.get(
+  "/dashboard",
+  checkAuth,
+  (req, res) => {
+    db.all(
+      "SELECT * FROM battles ORDER BY date, time",
+      [],
+      (err, battles) => {
+        if (err)
+          return res
+            .status(500)
+            .send("Database error");
 
-  db.all(
-    "SELECT * FROM battles ORDER BY date, time",
-    [],
-    (err, battles) => {
-
-      if (err) {
-        console.log("Database error:", err);
-        return res.status(500).send("Database error");
+        res.render("dashboard", {
+          battles: battles || [],
+          roleLevel: req.roleLevel
+        });
       }
+    );
+  }
+);
 
-      res.render("dashboard", {
-        battles: battles || [],
-        roleLevel: req.roleLevel
-      });
+/*
+CREATE BATTLE (UPLOAD + AUTO RESIZE)
+*/
+app.post(
+  "/create",
+  checkAuth,
+  upload.single("poster"),
+  async (req, res) => {
+    if (
+      !["owner", "admin"].includes(
+        req.roleLevel
+      )
+    )
+      return res.send("Permission denied");
 
+    const {
+      host,
+      opponent,
+      date,
+      time,
+      liveLink
+    } = req.body;
+
+    const poster = await processPoster(
+      req.file
+    );
+
+    db.run(
+      `INSERT INTO battles
+       (host, opponent, date, time, poster, liveLink)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        host,
+        opponent,
+        date,
+        time,
+        poster,
+        liveLink
+      ]
+    );
+
+    res.redirect("/dashboard");
+  }
+);
+
+/*
+EDIT BATTLE
+*/
+app.post(
+  "/edit/:id",
+  checkAuth,
+  upload.single("poster"),
+  async (req, res) => {
+    if (
+      !["owner", "admin"].includes(
+        req.roleLevel
+      )
+    )
+      return res.send("Permission denied");
+
+    const {
+      host,
+      opponent,
+      date,
+      time,
+      liveLink
+    } = req.body;
+
+    let poster =
+      req.body.posterExisting;
+
+    if (req.file) {
+      poster = await processPoster(
+        req.file
+      );
     }
-  );
 
-});
+    db.run(
+      `UPDATE battles
+       SET host=?, opponent=?, date=?, time=?, poster=?, liveLink=?
+       WHERE id=?`,
+      [
+        host,
+        opponent,
+        date,
+        time,
+        poster,
+        liveLink,
+        req.params.id
+      ]
+    );
+
+    res.redirect("/dashboard");
+  }
+);
 
 /*
-CREATE BATTLE (Owner + Admin only)
+DELETE BATTLE (OWNER ONLY)
 */
-app.post("/create", checkAuth, (req, res) => {
+app.post(
+  "/delete/:id",
+  checkAuth,
+  (req, res) => {
+    if (req.roleLevel !== "owner")
+      return res.send(
+        "Only Owners can delete battles"
+      );
 
-  if (!["owner", "admin"].includes(req.roleLevel))
-    return res.send("Permission denied");
+    db.run(
+      `DELETE FROM battles WHERE id=?`,
+      [req.params.id]
+    );
 
-  const { host, opponent, date, time, poster, liveLink } = req.body;
-
-  db.run(
-    `INSERT INTO battles
-     (host, opponent, date, time, poster, liveLink)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [host, opponent, date, time, poster, liveLink]
-  );
-
-  res.redirect("/dashboard");
-
-});
-
-/*
-EDIT BATTLE (Owner + Admin only)
-*/
-app.post("/edit/:id", checkAuth, (req, res) => {
-
-  if (!["owner", "admin"].includes(req.roleLevel))
-    return res.send("Permission denied");
-
-  const { host, opponent, date, time, poster, liveLink } = req.body;
-
-  db.run(
-    `UPDATE battles
-     SET host=?, opponent=?, date=?, time=?, poster=?, liveLink=?
-     WHERE id=?`,
-    [host, opponent, date, time, poster, liveLink, req.params.id]
-  );
-
-  res.redirect("/dashboard");
-
-});
+    res.redirect("/dashboard");
+  }
+);
 
 /*
-DELETE BATTLE (Owner only)
-*/
-app.post("/delete/:id", checkAuth, (req, res) => {
-
-  if (req.roleLevel !== "owner")
-    return res.send("Only Owners can delete battles");
-
-  db.run(
-    `DELETE FROM battles WHERE id=?`,
-    [req.params.id]
-  );
-
-  res.redirect("/dashboard");
-
-});
-
-/*
-PUBLIC CALENDAR (Everyone can view)
+PUBLIC CALENDAR
 */
 app.get("/calendar", (req, res) => {
-
   db.all(
     "SELECT * FROM battles ORDER BY date, time",
     [],
     (err, battles) => {
-
       if (err)
-        return res.send("Database error");
+        return res.send(
+          "Database error"
+        );
 
       res.render("calendar", {
         battles: battles || []
       });
-
     }
   );
-
 });
 
 /*
 API FOR DISCORD BOT SYNC
 */
 app.get("/api/battles", (req, res) => {
+  db.all(
+    "SELECT * FROM battles",
+    [],
+    (err, rows) => {
+      if (err)
+        return res
+          .status(500)
+          .json({
+            error:
+              "Database error"
+          });
 
-  db.all("SELECT * FROM battles", [], (err, rows) => {
-
-    if (err)
-      return res.status(500).json({ error: "Database error" });
-
-    res.json(rows);
-
-  });
-
+      res.json(rows);
+    }
+  );
 });
 
 /*
 START SERVER
 */
-const PORT = process.env.PORT || 8080;
+const PORT =
+  process.env.PORT || 8080;
 
 app.listen(PORT, () => {
-  console.log(`🔥 Ember Empire dashboard running on port ${PORT}`);
+  console.log(
+    `🔥 Ember Empire dashboard running on port ${PORT}`
+  );
 });
