@@ -13,9 +13,13 @@ const config = {
     guildId: process.env.GUILD_ID,
     callbackURL: process.env.CALLBACK_URL,
 
-    // ✅ ROLE IDs ALLOWED INTO DASHBOARD
-    managerRoles: [
-        "1465436891238367284",
+    // OWNER ROLE IDS (FULL ACCESS)
+    ownerRoles: [
+        "1465436891238367284"
+    ],
+
+    // ADMIN ROLE IDS (NO DELETE ACCESS)
+    adminRoles: [
         "1493636042354331779"
     ]
 };
@@ -29,12 +33,12 @@ app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
 /*
-IMPORTANT FOR RAILWAY (REVERSE PROXY SUPPORT)
+IMPORTANT FOR RAILWAY SESSION SUPPORT
 */
 app.set('trust proxy', 1);
 
 /*
-SESSION CONFIG (HTTPS SAFE)
+SESSION CONFIG
 */
 app.use(session({
     secret: "ember-empire-secret",
@@ -69,16 +73,14 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 /*
-ROLE ACCESS CHECK (ROLE-ID VERSION)
+ROLE LEVEL DETECTION
 */
-async function userHasAccess(req) {
+async function getUserRoleLevel(req) {
 
     try {
 
-        if (!req.user || !req.user.id) {
-            console.log("⚠️ No authenticated session user");
-            return false;
-        }
+        if (!req.user || !req.user.id)
+            return "none";
 
         const response = await fetch(
             `https://discord.com/api/guilds/${config.guildId}/members/${req.user.id}`,
@@ -90,42 +92,48 @@ async function userHasAccess(req) {
         );
 
         if (!response.ok) {
-            console.log("❌ Discord member lookup failed:", await response.text());
-            return false;
+
+            console.log("Discord role lookup failed:", await response.text());
+            return "none";
+
         }
 
         const member = await response.json();
 
-        if (!member.roles) {
-            console.log("❌ Roles missing from Discord response");
-            return false;
-        }
+        if (!member.roles)
+            return "none";
 
-        return member.roles.some(roleID =>
-            config.managerRoles.includes(roleID)
-        );
+        if (member.roles.some(role => config.ownerRoles.includes(role)))
+            return "owner";
+
+        if (member.roles.some(role => config.adminRoles.includes(role)))
+            return "admin";
+
+        return "none";
 
     } catch (err) {
 
-        console.log("❌ Role check crashed:", err);
-        return false;
+        console.log("Role detection error:", err);
+        return "none";
 
     }
 
 }
 
 /*
-AUTH MIDDLEWARE
+AUTH CHECK
 */
 async function checkAuth(req, res, next) {
 
     if (!req.isAuthenticated())
         return res.redirect('/');
 
-    const allowed = await userHasAccess(req);
+    const roleLevel = await getUserRoleLevel(req);
 
-    if (!allowed)
+    if (roleLevel === "none")
         return res.send("Access denied");
+
+    req.roleLevel = roleLevel;
 
     next();
 
@@ -148,7 +156,7 @@ app.get('/logout',
 );
 
 /*
-DASHBOARD ROUTE (SAFE VERSION – FIXES 500 ERRORS)
+DASHBOARD VIEW
 */
 app.get('/dashboard', checkAuth, (req, res) => {
 
@@ -158,55 +166,46 @@ app.get('/dashboard', checkAuth, (req, res) => {
         (err, battles) => {
 
             if (err) {
-                console.log("❌ Database read error:", err);
-                return res.status(500).send("Database error loading battles");
-            }
 
-            try {
-
-                const week = {
-                    Monday: [],
-                    Tuesday: [],
-                    Wednesday: [],
-                    Thursday: [],
-                    Friday: [],
-                    Saturday: [],
-                    Sunday: []
-                };
-
-                (battles || []).forEach(b => {
-
-                    if (!b.date) return;
-
-                    const parts = b.date.split('/');
-
-                    if (parts.length !== 3) return;
-
-                    const [d, m, y] = parts;
-
-                    const dayName =
-                        new Date(`${y}-${m}-${d}`)
-                            .toLocaleDateString(
-                                'en-GB',
-                                { weekday: 'long' }
-                            );
-
-                    if (week[dayName])
-                        week[dayName].push(b);
-
-                });
-
-                res.render('dashboard', {
-                    battles: battles || [],
-                    week
-                });
-
-            } catch (renderErr) {
-
-                console.log("❌ Dashboard render error:", renderErr);
-                res.status(500).send("Dashboard render failed");
+                console.log("Database error:", err);
+                return res.status(500).send("Database error");
 
             }
+
+            const week = {
+                Monday: [],
+                Tuesday: [],
+                Wednesday: [],
+                Thursday: [],
+                Friday: [],
+                Saturday: [],
+                Sunday: []
+            };
+
+            (battles || []).forEach(b => {
+
+                if (!b.date) return;
+
+                const parts = b.date.split('/');
+
+                if (parts.length !== 3) return;
+
+                const [d, m, y] = parts;
+
+                const dayName =
+                    new Date(`${y}-${m}-${d}`)
+                        .toLocaleDateString('en-GB', { weekday: 'long' });
+
+                if (week[dayName])
+                    week[dayName].push(b);
+
+            });
+
+            res.render('dashboard', {
+                battles: battles || [],
+                week,
+                roleLevel: req.roleLevel
+            });
 
         }
     );
@@ -214,7 +213,88 @@ app.get('/dashboard', checkAuth, (req, res) => {
 });
 
 /*
-PUBLIC CALENDAR (VISIBLE WITHOUT LOGIN)
+CREATE BATTLE (OWNER + ADMIN)
+*/
+app.post('/create', checkAuth, (req, res) => {
+
+    if (!["owner", "admin"].includes(req.roleLevel))
+        return res.send("Permission denied");
+
+    const {
+        host,
+        opponent,
+        date,
+        time,
+        poster,
+        liveLink
+    } = req.body;
+
+    db.run(
+        `INSERT INTO battles
+        (host, opponent, date, time, poster, liveLink)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+        [host, opponent, date, time, poster, liveLink]
+    );
+
+    res.redirect('/dashboard');
+
+});
+
+/*
+EDIT BATTLE (OWNER + ADMIN)
+*/
+app.post('/edit/:id', checkAuth, (req, res) => {
+
+    if (!["owner", "admin"].includes(req.roleLevel))
+        return res.send("Permission denied");
+
+    const {
+        host,
+        opponent,
+        date,
+        time,
+        poster,
+        liveLink
+    } = req.body;
+
+    db.run(
+        `UPDATE battles
+         SET host=?, opponent=?, date=?, time=?, poster=?, liveLink=?
+         WHERE id=?`,
+        [
+            host,
+            opponent,
+            date,
+            time,
+            poster,
+            liveLink,
+            req.params.id
+        ]
+    );
+
+    res.redirect('/dashboard');
+
+});
+
+/*
+DELETE BATTLE (OWNER ONLY)
+*/
+app.post('/delete/:id', checkAuth, (req, res) => {
+
+    if (req.roleLevel !== "owner")
+        return res.send("Only Owners can delete battles");
+
+    db.run(
+        `DELETE FROM battles WHERE id=?`,
+        [req.params.id]
+    );
+
+    res.redirect('/dashboard');
+
+});
+
+/*
+PUBLIC CALENDAR (VISIBLE TO EVERYONE)
 */
 app.get('/calendar', (req, res) => {
 
@@ -248,10 +328,7 @@ app.get('/calendar', (req, res) => {
 
                 const dayName =
                     new Date(`${y}-${m}-${d}`)
-                        .toLocaleDateString(
-                            'en-GB',
-                            { weekday: 'long' }
-                        );
+                        .toLocaleDateString('en-GB', { weekday: 'long' });
 
                 if (week[dayName])
                     week[dayName].push(b);
@@ -273,9 +350,7 @@ app.get('/api/battles', (req, res) => {
     db.all("SELECT * FROM battles", [], (err, rows) => {
 
         if (err)
-            return res.status(500).json({
-                error: "Database error"
-            });
+            return res.status(500).json({ error: "Database error" });
 
         res.json(rows);
 
