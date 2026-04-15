@@ -28,7 +28,7 @@ const config = {
 };
 
 /*
-UPLOAD STORAGE
+UPLOAD TEMP STORAGE
 */
 const upload = multer({
   dest: path.join(process.cwd(), "dashboard/public/posters/tmp")
@@ -77,6 +77,9 @@ app.set(
   path.join(process.cwd(), "dashboard/views")
 );
 
+/*
+STATIC FILES
+*/
 app.use(
   express.static(
     path.join(process.cwd(), "dashboard/public")
@@ -192,7 +195,7 @@ app.get("/logout", (req, res) =>
 );
 
 /*
-DASHBOARD
+DASHBOARD VIEW
 */
 app.get("/dashboard", checkAuth, (req, res) => {
 
@@ -217,7 +220,7 @@ app.get("/dashboard", checkAuth, (req, res) => {
 });
 
 /*
-CREATE BATTLE + INSTANT DISCORD POST
+CREATE BATTLE + DISCORD POST
 */
 app.post(
   "/create",
@@ -258,17 +261,29 @@ app.post(
 
           const form = new FormData();
 
+          const filename = poster
+            ? path.basename(poster)
+            : null;
+
+          const payload = {
+            content:
+              `🔥 **New Battle Scheduled!** 🔥\n\n` +
+              `⚔ ${host} vs ${opponent}\n` +
+              `📅 ${date} ⏰ ${time}\n\n` +
+              (liveLink
+                ? `🔗 Watch here:\n${liveLink}`
+                : "")
+          };
+
+          if (filename) {
+            payload.attachments = [
+              { id: 0, filename }
+            ];
+          }
+
           form.append(
             "payload_json",
-            JSON.stringify({
-              content:
-                `🔥 **New Battle Scheduled!** 🔥\n\n` +
-                `⚔ ${host} vs ${opponent}\n` +
-                `📅 ${date} ⏰ ${time}\n\n` +
-                (liveLink
-                  ? `🔗 Watch here:\n${liveLink}`
-                  : "")
-            })
+            JSON.stringify(payload)
           );
 
           if (poster) {
@@ -283,7 +298,8 @@ app.post(
 
             form.append(
               "files[0]",
-              fs.createReadStream(posterPath)
+              fs.createReadStream(posterPath),
+              filename
             );
 
           }
@@ -300,9 +316,9 @@ app.post(
             }
           );
 
-          const text = await response.text();
+          const result = await response.text();
 
-          console.log("Discord response:", text);
+          console.log("Discord response:", result);
 
         } catch (err) {
 
