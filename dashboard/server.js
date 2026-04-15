@@ -13,7 +13,7 @@ const config = {
     guildId: process.env.GUILD_ID,
     callbackURL: process.env.CALLBACK_URL,
 
-    // ROLE IDs WITH DASHBOARD ACCESS
+    // ✅ ROLE IDs WITH DASHBOARD ACCESS
     managerRoles: [
         "1465436891238367284",
         "1493636042354331779"
@@ -29,10 +29,13 @@ app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
 /*
-FIX SESSION FOR RAILWAY HTTPS
+IMPORTANT FOR RAILWAY SESSION SUPPORT
 */
 app.set('trust proxy', 1);
 
+/*
+SESSION CONFIG (HTTPS SAFE)
+*/
 app.use(session({
     secret: "ember-empire-secret",
     resave: false,
@@ -67,14 +70,19 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 /*
-ROLE ACCESS CHECK (ROLE ID VERSION)
+ROLE ACCESS CHECK (SAFE VERSION)
 */
 
 async function userHasAccess(req) {
 
     try {
 
-        const memberResponse = await fetch(
+        if (!req.user || !req.user.id) {
+            console.log("⚠️ No session user detected");
+            return false;
+        }
+
+        const response = await fetch(
             `https://discord.com/api/guilds/${config.guildId}/members/${req.user.id}`,
             {
                 headers: {
@@ -83,26 +91,32 @@ async function userHasAccess(req) {
             }
         );
 
-        if (!memberResponse.ok) {
+        if (!response.ok) {
 
-            console.log("Member lookup failed:",
-                await memberResponse.text());
+            const err = await response.text();
+            console.log("❌ Discord member lookup failed:", err);
 
             return false;
-
         }
 
-        const member = await memberResponse.json();
+        const member = await response.json();
+
+        if (!member.roles) {
+
+            console.log("❌ Roles missing from Discord response:", member);
+
+            return false;
+        }
 
         return member.roles.some(roleID =>
             config.managerRoles.includes(roleID)
         );
 
-    } catch (err) {
+    } catch (error) {
 
-        console.log("Role check error:", err);
+        console.log("❌ Role check crashed:", error);
+
         return false;
-
     }
 
 }
@@ -153,6 +167,11 @@ app.get('/dashboard', checkAuth, (req, res) => {
         [],
         (err, battles) => {
 
+            if (err) {
+                console.log("❌ Database error:", err);
+                return res.send("Database error");
+            }
+
             const week = {
                 Monday: [],
                 Tuesday: [],
@@ -187,7 +206,7 @@ app.get('/dashboard', checkAuth, (req, res) => {
 });
 
 /*
-PUBLIC CALENDAR
+PUBLIC CALENDAR (VISIBLE TO EVERYONE)
 */
 
 app.get('/calendar', (req, res) => {
@@ -196,6 +215,9 @@ app.get('/calendar', (req, res) => {
         "SELECT * FROM battles ORDER BY date,time",
         [],
         (err, battles) => {
+
+            if (err)
+                return res.send("Database error");
 
             const week = {
                 Monday: [],
@@ -231,7 +253,7 @@ app.get('/calendar', (req, res) => {
 });
 
 /*
-API FOR BOT SYNC
+API ENDPOINT FOR BOT SYNC
 */
 
 app.get('/api/battles', (req, res) => {
