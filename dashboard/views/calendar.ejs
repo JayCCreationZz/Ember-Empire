@@ -1,64 +1,117 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ember Empire Battle Calendar</title>
+
 <script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+body {
+    background: linear-gradient(135deg, #0f172a, #020617);
+}
+
+/* glow card styling */
+.battle-card {
+    background: rgba(30, 41, 59, 0.8);
+    backdrop-filter: blur(12px);
+    border-radius: 18px;
+    transition: 0.25s ease;
+    border: 1px solid rgba(255,120,0,0.2);
+}
+
+.battle-card:hover {
+    transform: translateY(-6px);
+    box-shadow:
+        0 0 20px rgba(255,120,0,0.4),
+        0 0 40px rgba(255,80,0,0.25);
+}
+
+.poster {
+    border-radius: 12px;
+}
+</style>
+
 </head>
+<body class="text-white min-h-screen">
 
-<body class="bg-gray-900 text-white min-h-screen">
+<div class="max-w-6xl mx-auto px-6 py-10">
 
-<div class="max-w-7xl mx-auto p-6">
+    <!-- HEADER -->
+    <div class="flex items-center gap-4 mb-10">
 
-<h1 class="text-3xl font-bold text-orange-400 mb-6">
-🔥 Ember Empire Weekly Battle Schedule
-</h1>
+        <img
+            src="/logo.png"
+            alt="Ember Empire Logo"
+            class="w-14 h-14 drop-shadow-[0_0_12px_rgba(255,90,0,0.7)]"
+        >
 
-<div class="grid grid-cols-7 gap-4">
+        <h1 class="text-4xl font-bold tracking-wide">
+            Ember Empire Battle Schedule
+        </h1>
 
-<% Object.keys(week).forEach(day => { %>
+    </div>
 
-<div class="bg-gray-800 rounded-xl p-4 shadow">
+    <!-- EMPTY STATE -->
+    <% if (!battles.length) { %>
 
-<h2 class="text-orange-400 font-semibold mb-3">
-<%= day %>
-</h2>
+        <div class="text-center text-gray-400 text-lg mt-20">
+            No upcoming battles scheduled yet ⚔
+        </div>
 
-<% week[day].forEach(battle => { %>
+    <% } else { %>
 
-<div class="bg-gray-700 rounded p-3 mb-3">
+    <!-- GRID -->
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
 
-<div class="font-bold text-sm">
-<%= battle.time %>
-</div>
+        <% battles.forEach(battle => { %>
 
-<div class="text-sm">
-<%= battle.host %> vs <%= battle.opponent %>
-</div>
+        <div class="battle-card p-5 shadow-lg">
 
-<% if(battle.poster){ %>
-<img src="<%= battle.poster %>" class="rounded mt-2">
-<% } %>
+            <!-- POSTER -->
+            <% if (battle.poster) { %>
+                <img
+                    src="<%= battle.poster %>"
+                    class="poster mb-4"
+                >
+            <% } %>
 
-<% if(battle.liveLink){ %>
-<a href="<%= battle.liveLink %>"
-target="_blank"
-class="block mt-2 bg-green-600 text-center py-1 rounded">
+            <!-- MATCHUP -->
+            <h2 class="text-xl font-semibold text-orange-400 mb-2">
+                🔥 <%= battle.host %> vs <%= battle.opponent %>
+            </h2>
 
-▶ Join Live
+            <!-- DATE -->
+            <p class="text-gray-300">
+                📅 <%= battle.date %>
+            </p>
 
-</a>
-<% } %>
+            <!-- TIME -->
+            <p class="text-gray-300 mb-3">
+                ⏰ <%= battle.time %>
+            </p>
 
-</div>
+            <!-- LINK -->
+            <% if (battle.liveLink) { %>
 
-<% }) %>
+                <a
+                    href="<%= battle.liveLink %>"
+                    target="_blank"
+                    class="inline-block mt-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 transition"
+                >
+                    Watch Battle 🔗
+                </a>
 
-</div>
+            <% } %>
 
-<% }) %>
+        </div>
 
-</div>
+        <% }) %>
+
+    </div>
+
+    <% } %>
 
 </div>
 
