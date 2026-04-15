@@ -35,7 +35,7 @@ const upload = multer({
 });
 
 /*
-AUTO RESIZE POSTERS
+POSTER RESIZE
 */
 async function processPoster(file) {
 
@@ -75,6 +75,9 @@ app.set(
   path.join(process.cwd(), "dashboard/views")
 );
 
+/*
+STATIC FILES
+*/
 app.use(
   express.static(
     path.join(process.cwd(), "dashboard/public")
@@ -173,7 +176,7 @@ async function checkAuth(req, res, next) {
 /*
 LOGIN ROUTES
 */
-app.get("/", (req, res) => res.render("login");
+app.get("/", (req, res) => res.render("login"));
 
 app.get("/login", passport.authenticate("discord"));
 
@@ -183,6 +186,10 @@ app.get(
     failureRedirect: "/"
   }),
   (req, res) => res.redirect("/dashboard")
+);
+
+app.get("/logout", (req, res) =>
+  req.logout(() => res.redirect("/"))
 );
 
 /*
@@ -195,7 +202,10 @@ app.get("/dashboard", checkAuth, (req, res) => {
     [],
     (err, battles) => {
 
-      if (err) return res.send("Database error");
+      if (err) {
+        console.error(err);
+        return res.send("Database error");
+      }
 
       res.render("dashboard", {
         battles,
@@ -208,7 +218,7 @@ app.get("/dashboard", checkAuth, (req, res) => {
 });
 
 /*
-CREATE BATTLE + POST TO DISCORD
+CREATE BATTLE + DISCORD POST
 */
 app.post(
   "/create",
@@ -296,6 +306,43 @@ app.post(
 
   }
 );
+
+/*
+DELETE BATTLE
+*/
+app.post("/delete/:id", checkAuth, (req, res) => {
+
+  if (!["owner", "admin"].includes(req.roleLevel))
+    return res.send("Permission denied");
+
+  db.run(
+    "DELETE FROM battles WHERE id=?",
+    [req.params.id]
+  );
+
+  res.redirect("/dashboard");
+
+});
+
+/*
+CALENDAR (PUBLIC VIEW)
+*/
+app.get("/calendar", (req, res) => {
+
+  db.all(
+    "SELECT * FROM battles ORDER BY date, time",
+    [],
+    (err, battles) => {
+
+      if (err)
+        return res.send("Database error");
+
+      res.render("calendar", { battles });
+
+    }
+  );
+
+});
 
 /*
 START SERVER
