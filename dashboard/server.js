@@ -7,6 +7,7 @@ const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
 const FormData = require("form-data");
+const axios = require("axios");
 
 const db = require("../database");
 
@@ -35,7 +36,7 @@ const upload = multer({
 });
 
 /*
-POSTER RESIZE
+AUTO-RESIZE POSTERS TO 1080x1080
 */
 async function processPoster(file) {
 
@@ -75,9 +76,6 @@ app.set(
   path.join(process.cwd(), "dashboard/views")
 );
 
-/*
-STATIC FILES
-*/
 app.use(
   express.static(
     path.join(process.cwd(), "dashboard/public")
@@ -132,7 +130,7 @@ async function getUserRoleLevel(req) {
 
   if (!req.user?.id) return "none";
 
-  const response = await fetch(
+  const response = await axios.get(
     `https://discord.com/api/guilds/${config.guildId}/members/${req.user.id}`,
     {
       headers: {
@@ -141,9 +139,7 @@ async function getUserRoleLevel(req) {
     }
   );
 
-  if (!response.ok) return "none";
-
-  const member = await response.json();
+  const member = response.data;
 
   if (member.roles.some(r => config.ownerRoles.includes(r)))
     return "owner";
@@ -193,7 +189,7 @@ app.get("/logout", (req, res) =>
 );
 
 /*
-DASHBOARD
+DASHBOARD VIEW
 */
 app.get("/dashboard", checkAuth, (req, res) => {
 
@@ -218,7 +214,7 @@ app.get("/dashboard", checkAuth, (req, res) => {
 });
 
 /*
-CREATE BATTLE + DISCORD POST
+CREATE BATTLE + POST TO DISCORD
 */
 app.post(
   "/create",
@@ -252,12 +248,7 @@ app.post(
             `📅 ${date} ⏰ ${time}\n\n` +
             (liveLink ? `🔗 Watch here:\n${liveLink}` : "");
 
-          form.append(
-            "payload_json",
-            JSON.stringify({
-              content: messageText
-            })
-          );
+          form.append("content", messageText);
 
           if (poster) {
 
@@ -270,32 +261,31 @@ app.post(
             console.log("Uploading:", posterPath);
 
             form.append(
-              "files[0]",
+              "file",
               fs.createReadStream(posterPath)
             );
 
           }
 
-          const response = await fetch(
+          const response = await axios.post(
             `https://discord.com/api/v10/channels/${process.env.BATTLE_CHANNEL_ID}/messages`,
+            form,
             {
-              method: "POST",
               headers: {
                 Authorization: `Bot ${process.env.TOKEN}`,
                 ...form.getHeaders()
-              },
-              body: form
+              }
             }
           );
 
-          console.log(
-            "Discord response:",
-            await response.text()
-          );
+          console.log("Discord success:", response.data.id);
 
         } catch (err) {
 
-          console.error("Discord post failed:", err);
+          console.error(
+            "Discord post failed:",
+            err.response?.data || err.message
+          );
 
         }
 
@@ -325,7 +315,7 @@ app.post("/delete/:id", checkAuth, (req, res) => {
 });
 
 /*
-CALENDAR (PUBLIC VIEW)
+PUBLIC CALENDAR VIEW
 */
 app.get("/calendar", (req, res) => {
 
