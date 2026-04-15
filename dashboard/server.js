@@ -27,20 +27,16 @@ const config = {
 };
 
 /*
-UPLOAD HANDLER
+POSTER UPLOAD TEMP STORAGE
 */
 const upload = multer({
-  dest: path.join(
-    process.cwd(),
-    "dashboard/public/posters/tmp"
-  )
+  dest: path.join(process.cwd(), "dashboard/public/posters/tmp")
 });
 
 /*
-AUTO RESIZE POSTERS
+AUTO RESIZE POSTERS TO 1080x1080
 */
 async function processPoster(file) {
-
   if (!file) return null;
 
   const postersDir = path.join(
@@ -56,10 +52,7 @@ async function processPoster(file) {
   const outputPath = path.join(postersDir, filename);
 
   await sharp(file.path)
-    .resize(1080, 1080, {
-      fit: "cover",
-      position: "centre"
-    })
+    .resize(1080, 1080, { fit: "cover" })
     .jpeg({ quality: 90 })
     .toFile(outputPath);
 
@@ -72,6 +65,7 @@ async function processPoster(file) {
 VIEW ENGINE
 */
 app.set("view engine", "ejs");
+
 app.set(
   "views",
   path.join(process.cwd(), "dashboard/views")
@@ -106,7 +100,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 /*
-DISCORD LOGIN
+DISCORD LOGIN STRATEGY
 */
 passport.use(
   new DiscordStrategy(
@@ -126,7 +120,7 @@ passport.serializeUser((u, d) => d(null, u));
 passport.deserializeUser((o, d) => d(null, o));
 
 /*
-ROLE CHECK
+ROLE DETECTION
 */
 async function getUserRoleLevel(req) {
 
@@ -145,32 +139,20 @@ async function getUserRoleLevel(req) {
 
   const member = await response.json();
 
-  if (
-    member.roles.some(r =>
-      config.ownerRoles.includes(r)
-    )
-  )
+  if (member.roles.some(r => config.ownerRoles.includes(r)))
     return "owner";
 
-  if (
-    member.roles.some(r =>
-      config.adminRoles.includes(r)
-    )
-  )
+  if (member.roles.some(r => config.adminRoles.includes(r)))
     return "admin";
 
-  if (
-    member.roles.some(r =>
-      config.memberRoles.includes(r)
-    )
-  )
+  if (member.roles.some(r => config.memberRoles.includes(r)))
     return "member";
 
   return "none";
 }
 
 /*
-AUTH MIDDLEWARE
+AUTH CHECK
 */
 async function checkAuth(req, res, next) {
 
@@ -211,7 +193,7 @@ app.get("/logout", (req, res) =>
 );
 
 /*
-DASHBOARD
+DASHBOARD VIEW
 SHOW ALL BATTLES
 */
 app.get("/dashboard", checkAuth, (req, res) => {
@@ -235,7 +217,7 @@ app.get("/dashboard", checkAuth, (req, res) => {
 });
 
 /*
-CREATE BATTLE
+CREATE BATTLE + INSTANT DISCORD POST
 */
 app.post(
   "/create",
@@ -246,8 +228,6 @@ app.post(
     if (!["owner", "admin"].includes(req.roleLevel))
       return res.send("Permission denied");
 
-    const poster = await processPoster(req.file);
-
     const {
       host,
       opponent,
@@ -255,6 +235,8 @@ app.post(
       time,
       liveLink
     } = req.body;
+
+    const poster = await processPoster(req.file);
 
     db.run(
       `INSERT INTO battles
@@ -267,17 +249,63 @@ app.post(
         time,
         poster,
         liveLink
-      ]
-    );
+      ],
+      async function(err) {
 
-    res.redirect("/dashboard");
+        if (err)
+          return res.send("Database error");
+
+        /*
+        INSTANT DISCORD ANNOUNCEMENT
+        */
+        try {
+
+          if (!process.env.BATTLE_CHANNEL_ID)
+            throw "Missing channel ID";
+
+          await fetch(
+            `https://discord.com/api/v10/channels/${process.env.BATTLE_CHANNEL_ID}/messages`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bot ${process.env.TOKEN}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                content:
+                  `🔥 **New Battle Scheduled!** 🔥\n\n` +
+                  `⚔ ${host} vs ${opponent}\n` +
+                  `📅 ${date} ⏰ ${time}\n\n` +
+                  (liveLink
+                    ? `🔗 Watch here:\n${liveLink}`
+                    : "")
+              })
+            }
+          );
+
+          console.log(
+            `📢 Instant Discord post sent: ${host} vs ${opponent}`
+          );
+
+        } catch (err) {
+
+          console.log(
+            "Instant Discord post failed:",
+            err
+          );
+
+        }
+
+        res.redirect("/dashboard");
+
+      }
+    );
 
   }
 );
 
 /*
-DELETE BATTLE
-ADMIN + OWNER ONLY
+DELETE BATTLE (ADMIN + OWNER)
 */
 app.post("/delete/:id", checkAuth, (req, res) => {
 
@@ -294,7 +322,7 @@ app.post("/delete/:id", checkAuth, (req, res) => {
 });
 
 /*
-PUBLIC CALENDAR
+PUBLIC CALENDAR VIEW
 */
 app.get("/calendar", (req, res) => {
 
