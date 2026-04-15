@@ -35,7 +35,8 @@ const upload = multer({
 });
 
 /*
-POSTER PROCESSING
+POSTER PROCESSOR
+AUTO-RESIZE TO 1080×1080
 */
 async function processPoster(file) {
 
@@ -58,7 +59,10 @@ async function processPoster(file) {
   const outputPath = path.join(postersDir, filename);
 
   await sharp(file.path)
-    .resize(1080, 1080, { fit: "cover" })
+    .resize(1080, 1080, {
+      fit: "cover",
+      position: "centre"
+    })
     .jpeg({ quality: 90 })
     .toFile(outputPath);
 
@@ -79,6 +83,7 @@ app.set(
 
 /*
 STATIC FILES
+(REQUIRED FOR POSTERS)
 */
 app.use(
   express.static(
@@ -220,7 +225,7 @@ app.get("/dashboard", checkAuth, (req, res) => {
 });
 
 /*
-CREATE BATTLE + DISCORD POST
+CREATE BATTLE + INSTANT DISCORD POST
 */
 app.post(
   "/create",
@@ -286,7 +291,7 @@ app.post(
             JSON.stringify(payload)
           );
 
-          if (poster) {
+          if (filename) {
 
             const posterPath = path.join(
               process.cwd(),
@@ -299,7 +304,10 @@ app.post(
             form.append(
               "files[0]",
               fs.createReadStream(posterPath),
-              filename
+              {
+                filename,
+                contentType: "image/jpeg"
+              }
             );
 
           }
