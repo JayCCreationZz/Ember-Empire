@@ -13,7 +13,7 @@ const db = require("../database");
 const app = express();
 
 /*
-ROLE CONFIG
+CONFIG
 */
 const config = {
   token: process.env.TOKEN,
@@ -28,14 +28,14 @@ const config = {
 };
 
 /*
-UPLOAD TEMP STORAGE
+UPLOAD STORAGE
 */
 const upload = multer({
   dest: path.join(process.cwd(), "dashboard/public/posters/tmp")
 });
 
 /*
-POSTER PROCESSOR
+POSTER PROCESSING
 */
 async function processPoster(file) {
 
@@ -77,9 +77,6 @@ app.set(
   path.join(process.cwd(), "dashboard/views")
 );
 
-/*
-STATIC FILES
-*/
 app.use(
   express.static(
     path.join(process.cwd(), "dashboard/public")
@@ -195,7 +192,7 @@ app.get("/logout", (req, res) =>
 );
 
 /*
-DASHBOARD VIEW
+DASHBOARD
 */
 app.get("/dashboard", checkAuth, (req, res) => {
 
@@ -204,8 +201,10 @@ app.get("/dashboard", checkAuth, (req, res) => {
     [],
     (err, battles) => {
 
-      if (err)
+      if (err) {
+        console.error(err);
         return res.send("Database error");
+      }
 
       res.render("dashboard", {
         battles,
@@ -219,7 +218,6 @@ app.get("/dashboard", checkAuth, (req, res) => {
 
 /*
 CREATE BATTLE + INSTANT DISCORD POST
-(DUPLICATE-SAFE)
 */
 app.post(
   "/create",
@@ -242,8 +240,8 @@ app.post(
 
     db.run(
       `INSERT INTO battles
-      (host, opponent, date, time, poster, liveLink)
-      VALUES (?, ?, ?, ?, ?, ?)`,
+       (host, opponent, date, time, poster, liveLink)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         host,
         opponent,
@@ -252,20 +250,11 @@ app.post(
         poster,
         liveLink
       ],
-      async function () {
-
-        const uniqueKey =
-          `${host}-${opponent}-${date}-${time}`;
-
-        if (!global.sentBattles)
-          global.sentBattles = {};
-
-        if (global.sentBattles[uniqueKey])
-          return res.redirect("/dashboard");
-
-        global.sentBattles[uniqueKey] = true;
+      async () => {
 
         try {
+
+          console.log("Posting battle to Discord...");
 
           const form = new FormData();
 
@@ -290,6 +279,8 @@ app.post(
               poster
             );
 
+            console.log("Uploading:", posterPath);
+
             form.append(
               "files[0]",
               fs.createReadStream(posterPath)
@@ -297,20 +288,21 @@ app.post(
 
           }
 
-          await fetch(
+          const response = await fetch(
             `https://discord.com/api/v10/channels/${process.env.BATTLE_CHANNEL_ID}/messages`,
             {
               method: "POST",
               headers: {
-                Authorization: `Bot ${process.env.TOKEN}`
+                Authorization: `Bot ${process.env.TOKEN}`,
+                ...form.getHeaders()
               },
               body: form
             }
           );
 
-          console.log(
-            `📢 Poster sent to Discord: ${host} vs ${opponent}`
-          );
+          const text = await response.text();
+
+          console.log("Discord response:", text);
 
         } catch (err) {
 
@@ -344,7 +336,7 @@ app.post("/delete/:id", checkAuth, (req, res) => {
 });
 
 /*
-PUBLIC CALENDAR
+CALENDAR VIEW
 */
 app.get("/calendar", (req, res) => {
 
@@ -364,7 +356,7 @@ app.get("/calendar", (req, res) => {
 });
 
 /*
-SERVER START
+START SERVER
 */
 const PORT = process.env.PORT || 8080;
 
