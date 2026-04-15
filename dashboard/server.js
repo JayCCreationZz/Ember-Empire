@@ -6,6 +6,7 @@ const multer = require("multer");
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
+const FormData = require("form-data");
 
 const db = require("../database");
 
@@ -34,7 +35,7 @@ const upload = multer({
 });
 
 /*
-POSTER PROCESSOR (AUTO-RESIZE)
+POSTER PROCESSOR
 */
 async function processPoster(file) {
 
@@ -57,10 +58,7 @@ async function processPoster(file) {
   const outputPath = path.join(postersDir, filename);
 
   await sharp(file.path)
-    .resize(1080, 1080, {
-      fit: "cover",
-      position: "centre"
-    })
+    .resize(1080, 1080, { fit: "cover" })
     .jpeg({ quality: 90 })
     .toFile(outputPath);
 
@@ -80,7 +78,7 @@ app.set(
 );
 
 /*
-STATIC FILES (IMPORTANT FOR POSTERS)
+STATIC FILES
 */
 app.use(
   express.static(
@@ -198,7 +196,6 @@ app.get("/logout", (req, res) =>
 
 /*
 DASHBOARD VIEW
-SHOW ALL BATTLES
 */
 app.get("/dashboard", checkAuth, (req, res) => {
 
@@ -221,7 +218,8 @@ app.get("/dashboard", checkAuth, (req, res) => {
 });
 
 /*
-CREATE BATTLE + SEND POSTER TO DISCORD
+CREATE BATTLE + INSTANT DISCORD POST
+(DUPLICATE-SAFE)
 */
 app.post(
   "/create",
@@ -244,8 +242,8 @@ app.post(
 
     db.run(
       `INSERT INTO battles
-       (host, opponent, date, time, poster, liveLink)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      (host, opponent, date, time, poster, liveLink)
+      VALUES (?, ?, ?, ?, ?, ?)`,
       [
         host,
         opponent,
@@ -254,14 +252,20 @@ app.post(
         poster,
         liveLink
       ],
-      async () => {
+      async function () {
 
-        /*
-        SEND TO DISCORD WITH IMAGE
-        */
+        const uniqueKey =
+          `${host}-${opponent}-${date}-${time}`;
+
+        if (!global.sentBattles)
+          global.sentBattles = {};
+
+        if (global.sentBattles[uniqueKey])
+          return res.redirect("/dashboard");
+
+        global.sentBattles[uniqueKey] = true;
+
         try {
-
-          const FormData = require("form-data");
 
           const form = new FormData();
 
@@ -310,7 +314,7 @@ app.post(
 
         } catch (err) {
 
-          console.log("Discord post failed:", err);
+          console.error("Discord post failed:", err);
 
         }
 
@@ -360,7 +364,7 @@ app.get("/calendar", (req, res) => {
 });
 
 /*
-START SERVER
+SERVER START
 */
 const PORT = process.env.PORT || 8080;
 
