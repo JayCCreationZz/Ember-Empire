@@ -28,15 +28,14 @@ const config = {
 };
 
 /*
-UPLOAD TEMP STORAGE
+UPLOAD STORAGE
 */
 const upload = multer({
   dest: path.join(process.cwd(), "dashboard/public/posters/tmp")
 });
 
 /*
-POSTER PROCESSOR
-AUTO-RESIZE TO 1080×1080
+AUTO RESIZE POSTERS
 */
 async function processPoster(file) {
 
@@ -52,17 +51,12 @@ async function processPoster(file) {
   }
 
   const filename =
-    Date.now() +
-    "-" +
-    file.originalname.replace(/\s+/g, "_");
+    Date.now() + "-" + file.originalname.replace(/\s+/g, "_");
 
   const outputPath = path.join(postersDir, filename);
 
   await sharp(file.path)
-    .resize(1080, 1080, {
-      fit: "cover",
-      position: "centre"
-    })
+    .resize(1080, 1080, { fit: "cover" })
     .jpeg({ quality: 90 })
     .toFile(outputPath);
 
@@ -81,10 +75,6 @@ app.set(
   path.join(process.cwd(), "dashboard/views")
 );
 
-/*
-STATIC FILES
-(REQUIRED FOR POSTERS)
-*/
 app.use(
   express.static(
     path.join(process.cwd(), "dashboard/public")
@@ -183,7 +173,7 @@ async function checkAuth(req, res, next) {
 /*
 LOGIN ROUTES
 */
-app.get("/", (req, res) => res.render("login"));
+app.get("/", (req, res) => res.render("login");
 
 app.get("/login", passport.authenticate("discord"));
 
@@ -195,12 +185,8 @@ app.get(
   (req, res) => res.redirect("/dashboard")
 );
 
-app.get("/logout", (req, res) =>
-  req.logout(() => res.redirect("/"))
-);
-
 /*
-DASHBOARD VIEW
+DASHBOARD
 */
 app.get("/dashboard", checkAuth, (req, res) => {
 
@@ -209,10 +195,7 @@ app.get("/dashboard", checkAuth, (req, res) => {
     [],
     (err, battles) => {
 
-      if (err) {
-        console.error(err);
-        return res.send("Database error");
-      }
+      if (err) return res.send("Database error");
 
       res.render("dashboard", {
         battles,
@@ -225,7 +208,7 @@ app.get("/dashboard", checkAuth, (req, res) => {
 });
 
 /*
-CREATE BATTLE + INSTANT DISCORD POST
+CREATE BATTLE + POST TO DISCORD
 */
 app.post(
   "/create",
@@ -236,13 +219,7 @@ app.post(
     if (!["owner", "admin"].includes(req.roleLevel))
       return res.send("Permission denied");
 
-    const {
-      host,
-      opponent,
-      date,
-      time,
-      liveLink
-    } = req.body;
+    const { host, opponent, date, time, liveLink } = req.body;
 
     const poster = await processPoster(req.file);
 
@@ -250,14 +227,7 @@ app.post(
       `INSERT INTO battles
        (host, opponent, date, time, poster, liveLink)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        host,
-        opponent,
-        date,
-        time,
-        poster,
-        liveLink
-      ],
+      [host, opponent, date, time, poster, liveLink],
       async () => {
 
         try {
@@ -266,32 +236,20 @@ app.post(
 
           const form = new FormData();
 
-          const filename = poster
-            ? path.basename(poster)
-            : null;
-
-          const payload = {
-            content:
-              `🔥 **New Battle Scheduled!** 🔥\n\n` +
-              `⚔ ${host} vs ${opponent}\n` +
-              `📅 ${date} ⏰ ${time}\n\n` +
-              (liveLink
-                ? `🔗 Watch here:\n${liveLink}`
-                : "")
-          };
-
-          if (filename) {
-            payload.attachments = [
-              { id: 0, filename }
-            ];
-          }
+          const messageText =
+            `🔥 **New Battle Scheduled!** 🔥\n\n` +
+            `⚔ ${host} vs ${opponent}\n` +
+            `📅 ${date} ⏰ ${time}\n\n` +
+            (liveLink ? `🔗 Watch here:\n${liveLink}` : "");
 
           form.append(
             "payload_json",
-            JSON.stringify(payload)
+            JSON.stringify({
+              content: messageText
+            })
           );
 
-          if (filename) {
+          if (poster) {
 
             const posterPath = path.join(
               process.cwd(),
@@ -303,11 +261,7 @@ app.post(
 
             form.append(
               "files[0]",
-              fs.createReadStream(posterPath),
-              {
-                filename,
-                contentType: "image/jpeg"
-              }
+              fs.createReadStream(posterPath)
             );
 
           }
@@ -324,9 +278,10 @@ app.post(
             }
           );
 
-          const result = await response.text();
-
-          console.log("Discord response:", result);
+          console.log(
+            "Discord response:",
+            await response.text()
+          );
 
         } catch (err) {
 
@@ -341,43 +296,6 @@ app.post(
 
   }
 );
-
-/*
-DELETE BATTLE
-*/
-app.post("/delete/:id", checkAuth, (req, res) => {
-
-  if (!["owner", "admin"].includes(req.roleLevel))
-    return res.send("Permission denied");
-
-  db.run(
-    "DELETE FROM battles WHERE id=?",
-    [req.params.id]
-  );
-
-  res.redirect("/dashboard");
-
-});
-
-/*
-CALENDAR VIEW
-*/
-app.get("/calendar", (req, res) => {
-
-  db.all(
-    "SELECT * FROM battles ORDER BY date, time",
-    [],
-    (err, battles) => {
-
-      if (err)
-        return res.send("Database error");
-
-      res.render("calendar", { battles });
-
-    }
-  );
-
-});
 
 /*
 START SERVER
