@@ -12,7 +12,12 @@ const config = {
     clientSecret: process.env.CLIENT_SECRET,
     guildId: process.env.GUILD_ID,
     callbackURL: process.env.CALLBACK_URL,
-    managerRoles: ["Owner", "Admin"]
+
+    // ROLE IDs WITH DASHBOARD ACCESS
+    managerRoles: [
+        "1465436891238367284",
+        "1493636042354331779"
+    ]
 };
 
 const app = express();
@@ -24,14 +29,9 @@ app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
 /*
-IMPORTANT: REQUIRED FOR RAILWAY SESSION SUPPORT
+FIX SESSION FOR RAILWAY HTTPS
 */
-
 app.set('trust proxy', 1);
-
-/*
-SESSION CONFIG (FIXED FOR HTTPS OAUTH)
-*/
 
 app.use(session({
     secret: "ember-empire-secret",
@@ -47,7 +47,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 /*
-DISCORD OAUTH STRATEGY
+DISCORD LOGIN STRATEGY
 */
 
 passport.use(new DiscordStrategy({
@@ -67,7 +67,7 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 /*
-ROLE ACCESS CHECK
+ROLE ACCESS CHECK (ROLE ID VERSION)
 */
 
 async function userHasAccess(req) {
@@ -94,40 +94,13 @@ async function userHasAccess(req) {
 
         const member = await memberResponse.json();
 
-        const rolesResponse = await fetch(
-            `https://discord.com/api/guilds/${config.guildId}/roles`,
-            {
-                headers: {
-                    Authorization: `Bot ${config.token}`
-                }
-            }
-        );
-
-        if (!rolesResponse.ok) {
-
-            console.log("Role list fetch failed:",
-                await rolesResponse.text());
-
-            return false;
-
-        }
-
-        const roles = await rolesResponse.json();
-
-        const allowedRoleIDs = roles
-            .filter(role =>
-                config.managerRoles.includes(role.name)
-            )
-            .map(role => role.id);
-
         return member.roles.some(roleID =>
-            allowedRoleIDs.includes(roleID)
+            config.managerRoles.includes(roleID)
         );
 
     } catch (err) {
 
         console.log("Role check error:", err);
-
         return false;
 
     }
@@ -168,38 +141,6 @@ app.get('/auth/callback',
 app.get('/logout',
     (req, res) => req.logout(() => res.redirect('/'))
 );
-
-/*
-DEBUG ROLE CHECK ROUTE
-*/
-
-app.get('/debug-roles', async (req, res) => {
-
-    if (!req.isAuthenticated())
-        return res.send("Not logged in");
-
-    try {
-
-        const memberResponse = await fetch(
-            `https://discord.com/api/guilds/${config.guildId}/members/${req.user.id}`,
-            {
-                headers: {
-                    Authorization: `Bot ${config.token}`
-                }
-            }
-        );
-
-        const member = await memberResponse.json();
-
-        res.json(member);
-
-    } catch (err) {
-
-        res.send(err.toString());
-
-    }
-
-});
 
 /*
 DASHBOARD VIEW
@@ -290,7 +231,7 @@ app.get('/calendar', (req, res) => {
 });
 
 /*
-API ENDPOINT FOR BOT SYNC
+API FOR BOT SYNC
 */
 
 app.get('/api/battles', (req, res) => {
