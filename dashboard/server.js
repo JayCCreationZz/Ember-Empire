@@ -24,13 +24,23 @@ app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
 /*
-SESSION CONFIG
+IMPORTANT: REQUIRED FOR RAILWAY SESSION SUPPORT
+*/
+
+app.set('trust proxy', 1);
+
+/*
+SESSION CONFIG (FIXED FOR HTTPS OAUTH)
 */
 
 app.use(session({
     secret: "ember-empire-secret",
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    cookie: {
+        secure: true,
+        sameSite: "none"
+    }
 }));
 
 app.use(passport.initialize());
@@ -104,14 +114,6 @@ async function userHasAccess(req) {
 
         const roles = await rolesResponse.json();
 
-        if (!Array.isArray(roles)) {
-
-            console.log("Invalid roles response:", roles);
-
-            return false;
-
-        }
-
         const allowedRoleIDs = roles
             .filter(role =>
                 config.managerRoles.includes(role.name)
@@ -168,8 +170,7 @@ app.get('/logout',
 );
 
 /*
-DEBUG ROLE VIEWER
-TEMPORARY TEST ROUTE
+DEBUG ROLE CHECK ROUTE
 */
 
 app.get('/debug-roles', async (req, res) => {
