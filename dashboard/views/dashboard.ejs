@@ -1,222 +1,175 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Ember Empire Control Panel</title>
-<link rel="icon" href="/favicon.png">
+<title>Ember Empire Dashboard</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
 
 <style>
-
 body {
-    font-family: Arial;
-    background: #0c0c0c;
-    color: white;
-    margin: 0;
+    background: linear-gradient(135deg,#020617,#0f172a);
 }
-
-/* HEADER */
-
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #141414;
-    padding: 20px 40px;
-    border-bottom: 1px solid #1f1f1f;
-}
-
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-}
-
-/* EMBER LOGO */
-
-.logo {
-    height: 52px;
-    animation: emberGlow 3s ease-in-out infinite alternate;
-}
-
-.logo:hover {
-    transform: scale(1.08);
-}
-
-@keyframes emberGlow {
-
-    0% {
-        filter:
-        drop-shadow(0 0 4px rgba(255,120,0,0.4));
-    }
-
-    50% {
-        filter:
-        drop-shadow(0 0 12px rgba(255,140,0,0.7));
-    }
-
-    100% {
-        filter:
-        drop-shadow(0 0 6px rgba(255,80,0,0.5));
-    }
-
-}
-
-.header h1 {
-    margin: 0;
-    color: #ff7a18;
-}
-
-.role-badge {
-    padding: 6px 12px;
-    border-radius: 6px;
-    background: #1f1f1f;
-    font-size: 14px;
-}
-
-/* CONTAINER */
-
-.container {
-    max-width: 1100px;
-    margin: auto;
-    padding: 40px;
-}
-
-/* CARD */
 
 .card {
-    background: #161616;
+    background: rgba(30,41,59,.75);
+    backdrop-filter: blur(10px);
+    border-radius: 18px;
+    border: 1px solid rgba(255,120,0,.15);
+    transition: .25s ease;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow:
+        0 0 18px rgba(255,120,0,.45),
+        0 0 32px rgba(255,60,0,.25);
+}
+
+.poster-thumb {
     border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 25px;
+    max-height: 160px;
 }
-
-.card h2 {
-    margin-top: 0;
-    color: #ff7a18;
-}
-
-/* INPUTS */
-
-input {
-    padding: 10px;
-    margin: 6px 4px;
-    border-radius: 6px;
-    border: none;
-    background: #222;
-    color: white;
-}
-
-/* BUTTONS */
-
-button {
-    padding: 10px 18px;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-    font-weight: 600;
-}
-
-.btn-create { background: #ff7a18; }
-.btn-update { background: #2e8cff; }
-.btn-delete { background: #c0392b; }
-
-/* BATTLE CARD */
-
-.battle-card {
-    display: flex;
-    gap: 20px;
-    background: #1c1c1c;
-    border-radius: 10px;
-    padding: 18px;
-    margin-top: 18px;
-}
-
-/* POSTER IMAGE */
-
-.poster {
-    width: 140px;
-    border-radius: 8px;
-    object-fit: cover;
-}
-
-/* BATTLE CONTENT */
-
-.battle-content {
-    flex: 1;
-}
-
-.meta {
-    opacity: .7;
-    margin-top: 5px;
-}
-
-.live-link {
-    display: inline-block;
-    margin-top: 8px;
-    padding: 6px 12px;
-    background: #ff7a18;
-    border-radius: 5px;
-    text-decoration: none;
-    color: white;
-}
-
-/* LOGOUT */
-
-.logout {
-    color: white;
-    text-decoration: none;
-}
-
 </style>
-
 </head>
 
-<body>
+<body class="text-white min-h-screen">
 
-<div class="header">
+<div class="max-w-7xl mx-auto px-6 py-10">
 
-<div class="brand">
+<!-- HEADER -->
+<div class="flex items-center justify-between mb-10">
 
-<img src="/logo.png" class="logo">
+<div class="flex items-center gap-4">
 
-<h1>Ember Empire Control Panel</h1>
+<img
+src="/logo.png"
+class="w-14 h-14 drop-shadow-[0_0_14px_rgba(255,90,0,0.75)]"
+>
 
-</div>
-
-<div>
-
-<span class="role-badge">
-Role: <%= roleLevel.toUpperCase() %>
-</span>
-
-<a class="logout" href="/logout">Logout</a>
+<h1 class="text-3xl font-bold">
+Ember Empire Dashboard
+</h1>
 
 </div>
 
+<!-- DROPDOWN MENU -->
+<div class="relative">
+
+<button
+onclick="toggleMenu()"
+class="bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-xl shadow-lg"
+>
+Menu ☰
+</button>
+
+<div
+id="dropdownMenu"
+class="hidden absolute right-0 mt-3 w-52 bg-gray-900 rounded-xl shadow-xl border border-orange-500/30 overflow-hidden"
+>
+
+<a href="/dashboard"
+class="block px-4 py-3 hover:bg-orange-500/20">
+⚔ Dashboard
+</a>
+
+<a href="/calendar"
+class="block px-4 py-3 hover:bg-orange-500/20">
+📅 Calendar
+</a>
+
+<% if (roleLevel === "owner" || roleLevel === "admin") { %>
+
+<a href="#createBattle"
+class="block px-4 py-3 hover:bg-orange-500/20">
+➕ Create Battle
+</a>
+
+<% } %>
+
+<% if (roleLevel === "owner") { %>
+
+<a href="#manageBattles"
+class="block px-4 py-3 hover:bg-orange-500/20">
+🛠 Manage Battles
+</a>
+
+<% } %>
+
+<a href="/logout"
+class="block px-4 py-3 hover:bg-red-500/30">
+🚪 Logout
+</a>
+
+</div>
+</div>
 </div>
 
 
-<div class="container">
+<!-- CREATE BATTLE FORM -->
+<% if (roleLevel === "owner" || roleLevel === "admin") { %>
 
+<div id="createBattle" class="card p-6 mb-12">
 
-<% if(roleLevel === "owner" || roleLevel === "admin"){ %>
+<h2 class="text-2xl font-semibold mb-5">
+Create Battle
+</h2>
 
-<div class="card">
+<form
+action="/create"
+method="POST"
+enctype="multipart/form-data"
+class="grid md:grid-cols-2 gap-4"
+>
 
-<h2>Create Battle</h2>
+<input
+name="host"
+placeholder="Host"
+required
+class="bg-gray-800 p-3 rounded-lg"
+/>
 
-<form action="/create" method="POST">
+<input
+name="opponent"
+placeholder="Opponent"
+required
+class="bg-gray-800 p-3 rounded-lg"
+/>
 
-<input name="host" placeholder="Host" required>
-<input name="opponent" placeholder="Opponent" required>
-<input name="date" placeholder="DD/MM/YYYY" required>
-<input name="time" placeholder="HH:MM" required>
-<input name="poster" placeholder="Poster URL">
-<input name="liveLink" placeholder="Live Link">
+<input
+name="date"
+placeholder="DD/MM/YYYY"
+required
+class="bg-gray-800 p-3 rounded-lg"
+/>
 
-<br>
+<input
+name="time"
+placeholder="HH:MM"
+required
+class="bg-gray-800 p-3 rounded-lg"
+/>
 
-<button class="btn-create">Create Battle</button>
+<input
+name="liveLink"
+placeholder="Live link (optional)"
+class="bg-gray-800 p-3 rounded-lg md:col-span-2"
+/>
+
+<input
+type="file"
+name="poster"
+accept="image/*"
+class="bg-gray-800 p-3 rounded-lg md:col-span-2"
+/>
+
+<button
+class="bg-orange-500 hover:bg-orange-600 py-3 rounded-lg md:col-span-2"
+>
+Create Battle
+</button>
 
 </form>
 
@@ -225,67 +178,72 @@ Role: <%= roleLevel.toUpperCase() %>
 <% } %>
 
 
-<div class="card">
+<!-- BATTLE LIST -->
+<div id="manageBattles">
 
-<h2>Scheduled Battles</h2>
+<h2 class="text-2xl font-semibold mb-6">
+Scheduled Battles
+</h2>
+
+<% if (!battles.length) { %>
+
+<div class="text-gray-400">
+No battles scheduled yet ⚔
+</div>
+
+<% } else { %>
+
+<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
 
 <% battles.forEach(battle => { %>
 
-<div class="battle-card">
+<div class="card p-5">
 
+<% if (battle.poster) { %>
 
-<% if(battle.poster){ %>
-
-<img src="<%= battle.poster %>" class="poster">
+<img
+src="<%= battle.poster %>"
+class="poster-thumb mb-4"
+/>
 
 <% } %>
 
+<h3 class="text-lg font-semibold text-orange-400">
+🔥 <%= battle.host %> vs <%= battle.opponent %>
+</h3>
 
-<div class="battle-content">
+<p class="text-gray-300">
+📅 <%= battle.date %>
+</p>
 
-<strong>
-<%= battle.host %> vs <%= battle.opponent %>
-</strong>
+<p class="text-gray-300 mb-2">
+⏰ <%= battle.time %>
+</p>
 
-<div class="meta">
-📅 <%= battle.date %> &nbsp;&nbsp; ⏰ <%= battle.time %>
-</div>
+<% if (battle.liveLink) { %>
 
-
-<% if(battle.liveLink){ %>
-
-<a href="<%= battle.liveLink %>" target="_blank" class="live-link">
-Watch Live
+<a
+href="<%= battle.liveLink %>"
+target="_blank"
+class="inline-block bg-orange-500 hover:bg-orange-600 px-3 py-2 rounded-lg mb-3"
+>
+Watch Battle 🔗
 </a>
 
 <% } %>
 
 
-<% if(roleLevel === "owner" || roleLevel === "admin"){ %>
+<!-- OWNER DELETE BUTTON -->
+<% if (roleLevel === "owner") { %>
 
-<form action="/edit/<%= battle.id %>" method="POST">
+<form
+action="/delete/<%= battle.id %>"
+method="POST"
+>
 
-<input name="host" value="<%= battle.host %>">
-<input name="opponent" value="<%= battle.opponent %>">
-<input name="date" value="<%= battle.date %>">
-<input name="time" value="<%= battle.time %>">
-<input name="poster" value="<%= battle.poster %>">
-<input name="liveLink" value="<%= battle.liveLink %>">
-
-<br>
-
-<button class="btn-update">Update</button>
-
-</form>
-
-<% } %>
-
-
-<% if(roleLevel === "owner"){ %>
-
-<form action="/delete/<%= battle.id %>" method="POST">
-
-<button class="btn-delete">
+<button
+class="bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg"
+>
 Delete Battle
 </button>
 
@@ -293,16 +251,32 @@ Delete Battle
 
 <% } %>
 
-
-</div>
-
 </div>
 
 <% }) %>
 
 </div>
 
+<% } %>
+
 </div>
+
+</div>
+
+
+<script>
+function toggleMenu() {
+const menu = document.getElementById("dropdownMenu");
+menu.classList.toggle("hidden");
+}
+
+window.onclick = function(event) {
+if (!event.target.closest(".relative")) {
+const menu = document.getElementById("dropdownMenu");
+if(menu) menu.classList.add("hidden");
+}
+}
+</script>
 
 </body>
 </html>
