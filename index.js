@@ -1,100 +1,136 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const cron = require("node-cron");
-const sqlite3 = require("sqlite3").verbose();
+const db = require("./database");
 
-// LOAD ENV VARIABLES FROM RAILWAY
-const config = {
-  token: process.env.TOKEN,
-  guildId: process.env.GUILD_ID
-};
+require("dotenv").config();
 
-// CREATE DISCORD CLIENT
+/*
+CREATE DISCORD CLIENT
+*/
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMessages
   ]
 });
 
-// LOAD DATABASE
-const db = new sqlite3.Database("./flameforce.db");
-
 /*
-BOT READY EVENT
+FORMAT DATE HELPERS
 */
-
-client.once("ready", () => {
-  console.log(`✅ Logged in as ${client.user.tag}`);
-});
-
-/*
-AUTO BATTLE REMINDER SYSTEM
-Checks database every minute
-*/
-
-cron.schedule("* * * * *", async () => {
-
+function getCurrentDate() {
   const now = new Date();
 
-  const currentTime =
-    now.toTimeString().slice(0, 5); // HH:MM format
+  return (
+    String(now.getDate()).padStart(2, "0") +
+    "/" +
+    String(now.getMonth() + 1).padStart(2, "0") +
+    "/" +
+    now.getFullYear()
+  );
+}
 
-  const currentDate =
-    now.toLocaleDateString("en-GB");
+function getCurrentTime() {
+  const now = new Date();
+
+  return (
+    String(now.getHours()).padStart(2, "0") +
+    ":" +
+    String(now.getMinutes()).padStart(2, "0")
+  );
+}
+
+/*
+POST BATTLE TO DISCORD
+*/
+async function postBattle(channel, battle) {
+
+  await channel.send({
+    content:
+      `⚔ **Battle Starting Now!** ⚔\n\n` +
+      `🔥 ${battle.host} vs ${battle.opponent}\n\n` +
+      (battle.liveLink
+        ? `🔗 Watch here:\n${battle.liveLink}`
+        : ""),
+    files: battle.poster
+      ? ["." + battle.poster]
+      : []
+  });
+
+  console.log(
+    `✅ Posted battle: ${battle.host} vs ${battle.opponent}`
+  );
+}
+
+/*
+CHECK SCHEDULED BATTLES EVERY MINUTE
+*/
+async function checkBattles() {
+
+  const currentDate = getCurrentDate();
+  const currentTime = getCurrentTime();
 
   db.all(
-    "SELECT * FROM battles WHERE date = ? AND time = ?",
-    [currentDate, currentTime],
+    `SELECT * FROM battles WHERE posted = 0`,
+    [],
     async (err, rows) => {
 
       if (err) {
-        console.log("Database reminder error:", err);
+        console.error("Database error:", err);
         return;
       }
 
       if (!rows.length) return;
 
-      const guild = client.guilds.cache.get(config.guildId);
+      const channel = await client.channels.fetch(
+        process.env.BATTLE_CHANNEL_ID
+      );
 
-      if (!guild) return;
+      if (!channel) {
+        console.error("Battle channel not found");
+        return;
+      }
 
-      const channel =
-        guild.systemChannel ||
-        guild.channels.cache.find(c =>
-          c.isTextBased?.()
-        );
+      for (const battle of rows) {
 
-      if (!channel) return;
+        if (
+          battle.date === currentDate &&
+          battle.time === currentTime
+        ) {
 
-      rows.forEach(async battle => {
+          await postBattle(channel, battle);
 
-        try {
-
-          await channel.send(
-            `🔥 **Battle Starting Now!**
-Host: ${battle.host}
-Opponent: ${battle.opponent}
-Time: ${battle.time}
-
-${battle.liveLink || ""}`
+          db.run(
+            `UPDATE battles SET posted = 1 WHERE id = ?`,
+            [battle.id]
           );
-
-        } catch (err) {
-
-          console.log("Reminder send error:", err);
 
         }
 
-      });
+      }
 
     }
   );
+}
+
+/*
+BOT READY EVENT
+*/
+client.once("clientReady", () => {
+
+  console.log(
+    `🔥 Ember Empire Battle Bot online as ${client.user.tag}`
+  );
+
+  /*
+  RUN CHECK EVERY MINUTE
+  */
+  cron.schedule("* * * * *", () => {
+    checkBattles();
+  });
 
 });
 
 /*
-LOGIN BOT
+LOGIN
 */
-
-client.login(config.token);
+client.login(process.env.TOKEN);
