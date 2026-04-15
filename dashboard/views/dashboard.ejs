@@ -3,51 +3,52 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Ember Empire Dashboard</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
-body {
-    background: linear-gradient(135deg,#020617,#0f172a);
+body{
+background:linear-gradient(135deg,#020617,#0f172a);
 }
 
-.card {
-    background: rgba(30,41,59,.75);
-    backdrop-filter: blur(10px);
-    border-radius: 18px;
-    border: 1px solid rgba(255,120,0,.15);
-    transition: .25s ease;
+/* glow card styling */
+.card{
+background:rgba(30,41,59,.75);
+backdrop-filter:blur(12px);
+border-radius:18px;
+border:1px solid rgba(255,120,0,.2);
+transition:.25s ease;
 }
 
-.card:hover {
-    transform: translateY(-4px);
-    box-shadow:
-        0 0 18px rgba(255,120,0,.45),
-        0 0 32px rgba(255,60,0,.25);
+.card:hover{
+transform:translateY(-4px);
+box-shadow:
+0 0 20px rgba(255,120,0,.45),
+0 0 40px rgba(255,60,0,.25);
 }
 
-.poster-thumb {
-    border-radius: 12px;
-    max-height: 160px;
+.poster-thumb{
+border-radius:12px;
+max-height:160px;
+object-fit:cover;
 }
 </style>
 </head>
 
 <body class="text-white min-h-screen">
 
-<div class="max-w-7xl mx-auto px-6 py-10">
+<div class="max-w-7xl mx-auto px-6 py-10 relative z-0">
 
 <!-- HEADER -->
-<div class="flex items-center justify-between mb-10">
+<div class="flex items-center justify-between mb-10 relative z-50">
 
 <div class="flex items-center gap-4">
 
 <img
 src="/logo.png"
 class="w-14 h-14 drop-shadow-[0_0_14px_rgba(255,90,0,0.75)]"
->
+/>
 
 <h1 class="text-3xl font-bold">
 Ember Empire Dashboard
@@ -55,19 +56,20 @@ Ember Empire Dashboard
 
 </div>
 
+
 <!-- DROPDOWN MENU -->
-<div class="relative">
+<div class="relative z-50">
 
 <button
 onclick="toggleMenu()"
-class="bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-xl shadow-lg"
+class="bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-xl shadow-lg transition"
 >
 Menu ☰
 </button>
 
 <div
 id="dropdownMenu"
-class="hidden absolute right-0 mt-3 w-52 bg-gray-900 rounded-xl shadow-xl border border-orange-500/30 overflow-hidden"
+class="hidden absolute right-0 mt-3 w-56 bg-gray-900 rounded-xl shadow-xl border border-orange-500/30 overflow-hidden z-50"
 >
 
 <a href="/dashboard"
@@ -80,7 +82,7 @@ class="block px-4 py-3 hover:bg-orange-500/20">
 📅 Calendar
 </a>
 
-<% if (roleLevel === "owner" || roleLevel === "admin") { %>
+<% if(roleLevel === "owner" || roleLevel === "admin"){ %>
 
 <a href="#createBattle"
 class="block px-4 py-3 hover:bg-orange-500/20">
@@ -89,7 +91,7 @@ class="block px-4 py-3 hover:bg-orange-500/20">
 
 <% } %>
 
-<% if (roleLevel === "owner") { %>
+<% if(roleLevel === "owner"){ %>
 
 <a href="#manageBattles"
 class="block px-4 py-3 hover:bg-orange-500/20">
@@ -105,11 +107,12 @@ class="block px-4 py-3 hover:bg-red-500/30">
 
 </div>
 </div>
+
 </div>
 
 
-<!-- CREATE BATTLE FORM -->
-<% if (roleLevel === "owner" || roleLevel === "admin") { %>
+<!-- CREATE BATTLE PANEL -->
+<% if(roleLevel === "owner" || roleLevel === "admin"){ %>
 
 <div id="createBattle" class="card p-6 mb-12">
 
@@ -178,14 +181,14 @@ Create Battle
 <% } %>
 
 
-<!-- BATTLE LIST -->
+<!-- SCHEDULED BATTLES -->
 <div id="manageBattles">
 
 <h2 class="text-2xl font-semibold mb-6">
 Scheduled Battles
 </h2>
 
-<% if (!battles.length) { %>
+<% if(!battles.length){ %>
 
 <div class="text-gray-400">
 No battles scheduled yet ⚔
@@ -195,11 +198,11 @@ No battles scheduled yet ⚔
 
 <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-<% battles.forEach(battle => { %>
+<% battles.forEach(battle=>{ %>
 
 <div class="card p-5">
 
-<% if (battle.poster) { %>
+<% if(battle.poster){ %>
 
 <img
 src="<%= battle.poster %>"
@@ -220,7 +223,7 @@ class="poster-thumb mb-4"
 ⏰ <%= battle.time %>
 </p>
 
-<% if (battle.liveLink) { %>
+<% if(battle.liveLink){ %>
 
 <a
 href="<%= battle.liveLink %>"
@@ -234,7 +237,7 @@ Watch Battle 🔗
 
 
 <!-- OWNER DELETE BUTTON -->
-<% if (roleLevel === "owner") { %>
+<% if(roleLevel === "owner"){ %>
 
 <form
 action="/delete/<%= battle.id %>"
@@ -265,14 +268,14 @@ Delete Battle
 
 
 <script>
-function toggleMenu() {
-const menu = document.getElementById("dropdownMenu");
+function toggleMenu(){
+const menu=document.getElementById("dropdownMenu");
 menu.classList.toggle("hidden");
 }
 
-window.onclick = function(event) {
-if (!event.target.closest(".relative")) {
-const menu = document.getElementById("dropdownMenu");
+window.onclick=function(event){
+if(!event.target.closest(".relative")){
+const menu=document.getElementById("dropdownMenu");
 if(menu) menu.classList.add("hidden");
 }
 }
