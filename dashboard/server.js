@@ -3,10 +3,6 @@ const session = require("express-session");
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
 const path = require("path");
-
-const fetch = (...args) =>
-  import("node-fetch").then(({ default: fetch }) => fetch(...args));
-
 const db = require("../database");
 
 const app = express();
@@ -22,7 +18,8 @@ const config = {
   callbackURL: process.env.CALLBACK_URL,
 
   ownerRoles: ["1465436891238367284"],
-  adminRoles: ["1493636042354331779"]
+  adminRoles: ["1493636042354331779"],
+  memberRoles: ["1458157807361720426"]
 };
 
 /*
@@ -32,7 +29,7 @@ app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "dashboard/views"));
 
 /*
-STATIC FILES (FIXES LOGO + FAVICON)
+STATIC FILES (LOGO + FAVICON SUPPORT)
 */
 app.use(
   express.static(
@@ -43,7 +40,7 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 
 /*
-SESSION SUPPORT (REQUIRED FOR RAILWAY HTTPS)
+SESSION CONFIG (Required for Railway HTTPS)
 */
 app.set("trust proxy", 1);
 
@@ -84,7 +81,7 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 /*
-ROLE LEVEL DETECTION
+ROLE DETECTION FUNCTION
 */
 async function getUserRoleLevel(req) {
   try {
@@ -99,7 +96,10 @@ async function getUserRoleLevel(req) {
       }
     );
 
-    if (!response.ok) return "none";
+    if (!response.ok) {
+      console.log("Discord role lookup failed");
+      return "none";
+    }
 
     const member = await response.json();
 
@@ -111,7 +111,11 @@ async function getUserRoleLevel(req) {
     if (member.roles.some(r => config.adminRoles.includes(r)))
       return "admin";
 
+    if (member.roles.some(r => config.memberRoles.includes(r)))
+      return "member";
+
     return "none";
+
   } catch (err) {
     console.log("Role detection error:", err);
     return "none";
@@ -119,7 +123,7 @@ async function getUserRoleLevel(req) {
 }
 
 /*
-AUTH CHECK
+AUTH MIDDLEWARE
 */
 async function checkAuth(req, res, next) {
   if (!req.isAuthenticated()) return res.redirect("/");
@@ -143,9 +147,7 @@ app.get("/login", passport.authenticate("discord"));
 
 app.get(
   "/auth/callback",
-  passport.authenticate("discord", {
-    failureRedirect: "/"
-  }),
+  passport.authenticate("discord", { failureRedirect: "/" }),
   (req, res) => res.redirect("/dashboard")
 );
 
@@ -154,13 +156,15 @@ app.get("/logout", (req, res) => {
 });
 
 /*
-DASHBOARD VIEW
+DASHBOARD ROUTE
 */
 app.get("/dashboard", checkAuth, (req, res) => {
+
   db.all(
     "SELECT * FROM battles ORDER BY date, time",
     [],
     (err, battles) => {
+
       if (err) {
         console.log("Database error:", err);
         return res.status(500).send("Database error");
@@ -170,19 +174,21 @@ app.get("/dashboard", checkAuth, (req, res) => {
         battles: battles || [],
         roleLevel: req.roleLevel
       });
+
     }
   );
+
 });
 
 /*
-CREATE BATTLE (OWNER + ADMIN)
+CREATE BATTLE (Owner + Admin only)
 */
 app.post("/create", checkAuth, (req, res) => {
+
   if (!["owner", "admin"].includes(req.roleLevel))
     return res.send("Permission denied");
 
-  const { host, opponent, date, time, poster, liveLink } =
-    req.body;
+  const { host, opponent, date, time, poster, liveLink } = req.body;
 
   db.run(
     `INSERT INTO battles
@@ -192,44 +198,37 @@ app.post("/create", checkAuth, (req, res) => {
   );
 
   res.redirect("/dashboard");
+
 });
 
 /*
-EDIT BATTLE (OWNER + ADMIN)
+EDIT BATTLE (Owner + Admin only)
 */
 app.post("/edit/:id", checkAuth, (req, res) => {
+
   if (!["owner", "admin"].includes(req.roleLevel))
     return res.send("Permission denied");
 
-  const { host, opponent, date, time, poster, liveLink } =
-    req.body;
+  const { host, opponent, date, time, poster, liveLink } = req.body;
 
   db.run(
     `UPDATE battles
      SET host=?, opponent=?, date=?, time=?, poster=?, liveLink=?
      WHERE id=?`,
-    [
-      host,
-      opponent,
-      date,
-      time,
-      poster,
-      liveLink,
-      req.params.id
-    ]
+    [host, opponent, date, time, poster, liveLink, req.params.id]
   );
 
   res.redirect("/dashboard");
+
 });
 
 /*
-DELETE BATTLE (OWNER ONLY)
+DELETE BATTLE (Owner only)
 */
 app.post("/delete/:id", checkAuth, (req, res) => {
+
   if (req.roleLevel !== "owner")
-    return res.send(
-      "Only Owners can delete battles"
-    );
+    return res.send("Only Owners can delete battles");
 
   db.run(
     `DELETE FROM battles WHERE id=?`,
@@ -237,38 +236,45 @@ app.post("/delete/:id", checkAuth, (req, res) => {
   );
 
   res.redirect("/dashboard");
+
 });
 
 /*
-PUBLIC CALENDAR
+PUBLIC CALENDAR (Everyone can view)
 */
 app.get("/calendar", (req, res) => {
+
   db.all(
     "SELECT * FROM battles ORDER BY date, time",
     [],
     (err, battles) => {
+
       if (err)
         return res.send("Database error");
 
       res.render("calendar", {
         battles: battles || []
       });
+
     }
   );
+
 });
 
 /*
-API FOR BOT SYNC
+API FOR DISCORD BOT SYNC
 */
 app.get("/api/battles", (req, res) => {
+
   db.all("SELECT * FROM battles", [], (err, rows) => {
+
     if (err)
-      return res
-        .status(500)
-        .json({ error: "Database error" });
+      return res.status(500).json({ error: "Database error" });
 
     res.json(rows);
+
   });
+
 });
 
 /*
@@ -277,7 +283,5 @@ START SERVER
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
-  console.log(
-    `🔥 Ember Empire dashboard running on port ${PORT}`
-  );
+  console.log(`🔥 Ember Empire dashboard running on port ${PORT}`);
 });
