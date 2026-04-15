@@ -27,22 +27,27 @@ const config = {
 };
 
 /*
-POSTER UPLOAD TEMP STORAGE
+UPLOAD TEMP STORAGE
 */
 const upload = multer({
   dest: path.join(process.cwd(), "dashboard/public/posters/tmp")
 });
 
 /*
-AUTO RESIZE POSTERS TO 1080x1080
+POSTER PROCESSOR (AUTO-RESIZE)
 */
 async function processPoster(file) {
+
   if (!file) return null;
 
   const postersDir = path.join(
     process.cwd(),
     "dashboard/public/posters"
   );
+
+  if (!fs.existsSync(postersDir)) {
+    fs.mkdirSync(postersDir, { recursive: true });
+  }
 
   const filename =
     Date.now() +
@@ -52,13 +57,16 @@ async function processPoster(file) {
   const outputPath = path.join(postersDir, filename);
 
   await sharp(file.path)
-    .resize(1080, 1080, { fit: "cover" })
+    .resize(1080, 1080, {
+      fit: "cover",
+      position: "centre"
+    })
     .jpeg({ quality: 90 })
     .toFile(outputPath);
 
   fs.unlinkSync(file.path);
 
-  return "/posters/" + filename;
+  return `/posters/${filename}`;
 }
 
 /*
@@ -71,6 +79,9 @@ app.set(
   path.join(process.cwd(), "dashboard/views")
 );
 
+/*
+STATIC FILES (IMPORTANT FOR POSTERS)
+*/
 app.use(
   express.static(
     path.join(process.cwd(), "dashboard/public")
@@ -100,7 +111,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 /*
-DISCORD LOGIN STRATEGY
+DISCORD LOGIN
 */
 passport.use(
   new DiscordStrategy(
@@ -110,9 +121,8 @@ passport.use(
       callbackURL: config.callbackURL,
       scope: ["identify"]
     },
-    (accessToken, refreshToken, profile, done) => {
-      return done(null, profile);
-    }
+    (accessToken, refreshToken, profile, done) =>
+      done(null, profile)
   )
 );
 
@@ -120,7 +130,7 @@ passport.serializeUser((u, d) => d(null, u));
 passport.deserializeUser((o, d) => d(null, o));
 
 /*
-ROLE DETECTION
+ROLE CHECK
 */
 async function getUserRoleLevel(req) {
 
@@ -170,22 +180,16 @@ async function checkAuth(req, res, next) {
 /*
 LOGIN ROUTES
 */
-app.get("/", (req, res) =>
-  res.render("login")
-);
+app.get("/", (req, res) => res.render("login"));
 
-app.get(
-  "/login",
-  passport.authenticate("discord")
-);
+app.get("/login", passport.authenticate("discord"));
 
 app.get(
   "/auth/callback",
   passport.authenticate("discord", {
     failureRedirect: "/"
   }),
-  (req, res) =>
-    res.redirect("/dashboard")
+  (req, res) => res.redirect("/dashboard")
 );
 
 app.get("/logout", (req, res) =>
@@ -217,7 +221,7 @@ app.get("/dashboard", checkAuth, (req, res) => {
 });
 
 /*
-CREATE BATTLE + INSTANT DISCORD POST
+CREATE BATTLE + SEND POSTER TO DISCORD
 */
 app.post(
   "/create",
@@ -240,8 +244,8 @@ app.post(
 
     db.run(
       `INSERT INTO battles
-      (host, opponent, date, time, poster, liveLink)
-      VALUES (?, ?, ?, ?, ?, ?)`,
+       (host, opponent, date, time, poster, liveLink)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         host,
         opponent,
@@ -250,49 +254,63 @@ app.post(
         poster,
         liveLink
       ],
-      async function(err) {
-
-        if (err)
-          return res.send("Database error");
+      async () => {
 
         /*
-        INSTANT DISCORD ANNOUNCEMENT
+        SEND TO DISCORD WITH IMAGE
         */
         try {
 
-          if (!process.env.BATTLE_CHANNEL_ID)
-            throw "Missing channel ID";
+          const FormData = require("form-data");
+
+          const form = new FormData();
+
+          form.append(
+            "payload_json",
+            JSON.stringify({
+              content:
+                `🔥 **New Battle Scheduled!** 🔥\n\n` +
+                `⚔ ${host} vs ${opponent}\n` +
+                `📅 ${date} ⏰ ${time}\n\n` +
+                (liveLink
+                  ? `🔗 Watch here:\n${liveLink}`
+                  : "")
+            })
+          );
+
+          if (poster) {
+
+            const posterPath = path.join(
+              process.cwd(),
+              "dashboard/public",
+              poster
+            );
+
+            form.append(
+              "files[0]",
+              fs.createReadStream(posterPath)
+            );
+
+          }
 
           await fetch(
             `https://discord.com/api/v10/channels/${process.env.BATTLE_CHANNEL_ID}/messages`,
             {
               method: "POST",
               headers: {
-                Authorization: `Bot ${process.env.TOKEN}`,
-                "Content-Type": "application/json"
+                Authorization: `Bot ${process.env.TOKEN}`
               },
-              body: JSON.stringify({
-                content:
-                  `🔥 **New Battle Scheduled!** 🔥\n\n` +
-                  `⚔ ${host} vs ${opponent}\n` +
-                  `📅 ${date} ⏰ ${time}\n\n` +
-                  (liveLink
-                    ? `🔗 Watch here:\n${liveLink}`
-                    : "")
-              })
+              body: form
             }
           );
 
           console.log(
-            `📢 Instant Discord post sent: ${host} vs ${opponent}`
+            `📢 Poster sent to Discord: ${host} vs ${opponent}`
           );
 
         } catch (err) {
 
-          console.log(
-            "Instant Discord post failed:",
-            err
-          );
+          console.log("Discord post failed:", err);
 
         }
 
@@ -305,7 +323,7 @@ app.post(
 );
 
 /*
-DELETE BATTLE (ADMIN + OWNER)
+DELETE BATTLE
 */
 app.post("/delete/:id", checkAuth, (req, res) => {
 
@@ -322,7 +340,7 @@ app.post("/delete/:id", checkAuth, (req, res) => {
 });
 
 /*
-PUBLIC CALENDAR VIEW
+PUBLIC CALENDAR
 */
 app.get("/calendar", (req, res) => {
 
@@ -342,7 +360,7 @@ app.get("/calendar", (req, res) => {
 });
 
 /*
-SERVER START
+START SERVER
 */
 const PORT = process.env.PORT || 8080;
 
