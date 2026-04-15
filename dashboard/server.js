@@ -57,8 +57,7 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 /*
-ROLE ACCESS CHECK (FINAL RELIABLE VERSION)
-Uses bot token to fetch member roles directly
+ROLE ACCESS CHECK
 */
 
 async function userHasAccess(req) {
@@ -169,6 +168,39 @@ app.get('/logout',
 );
 
 /*
+DEBUG ROLE VIEWER
+TEMPORARY TEST ROUTE
+*/
+
+app.get('/debug-roles', async (req, res) => {
+
+    if (!req.isAuthenticated())
+        return res.send("Not logged in");
+
+    try {
+
+        const memberResponse = await fetch(
+            `https://discord.com/api/guilds/${config.guildId}/members/${req.user.id}`,
+            {
+                headers: {
+                    Authorization: `Bot ${config.token}`
+                }
+            }
+        );
+
+        const member = await memberResponse.json();
+
+        res.json(member);
+
+    } catch (err) {
+
+        res.send(err.toString());
+
+    }
+
+});
+
+/*
 DASHBOARD VIEW
 */
 
@@ -272,96 +304,6 @@ app.get('/api/battles', (req, res) => {
         res.json(rows);
 
     });
-
-});
-
-/*
-CREATE BATTLE
-*/
-
-app.post('/create', checkAuth, (req, res) => {
-
-    const {
-        host,
-        opponent,
-        date,
-        time,
-        poster,
-        liveLink
-    } = req.body;
-
-    db.run(
-        `INSERT INTO battles
-        (host,opponent,date,time,poster,liveLink)
-        VALUES (?,?,?,?,?,?)`,
-        [host, opponent, date, time, poster, liveLink]
-    );
-
-    res.redirect('/dashboard');
-
-});
-
-/*
-DELETE BATTLE
-*/
-
-app.post('/delete/:id', checkAuth, (req, res) => {
-
-    db.run(
-        `DELETE FROM battles WHERE id=?`,
-        [req.params.id]
-    );
-
-    res.redirect('/dashboard');
-
-});
-
-/*
-EDIT VIEW
-*/
-
-app.get('/edit/:id', checkAuth, (req, res) => {
-
-    db.get(
-        `SELECT * FROM battles WHERE id=?`,
-        [req.params.id],
-        (err, battle) =>
-            res.render('edit', { battle })
-    );
-
-});
-
-/*
-UPDATE BATTLE
-*/
-
-app.post('/edit/:id', checkAuth, (req, res) => {
-
-    const {
-        host,
-        opponent,
-        date,
-        time,
-        poster,
-        liveLink
-    } = req.body;
-
-    db.run(
-        `UPDATE battles
-         SET host=?,opponent=?,date=?,time=?,poster=?,liveLink=?
-         WHERE id=?`,
-        [
-            host,
-            opponent,
-            date,
-            time,
-            poster,
-            liveLink,
-            req.params.id
-        ]
-    );
-
-    res.redirect('/dashboard');
 
 });
 
