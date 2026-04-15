@@ -3,6 +3,7 @@ const session = require("express-session");
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
 const path = require("path");
+
 const fetch = (...args) =>
   import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
@@ -28,12 +29,16 @@ const config = {
 VIEW ENGINE
 */
 app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views"));
+app.set("views", path.join(process.cwd(), "dashboard/views"));
 
 /*
-STATIC FILES (LOGO + FAVICON SUPPORT)
+STATIC FILES (FIXES LOGO + FAVICON)
 */
-app.use(express.static(path.join(__dirname, "public")));
+app.use(
+  express.static(
+    path.join(process.cwd(), "dashboard/public")
+  )
+);
 
 app.use(express.urlencoded({ extended: true }));
 
@@ -94,10 +99,7 @@ async function getUserRoleLevel(req) {
       }
     );
 
-    if (!response.ok) {
-      console.log("Discord lookup failed");
-      return "none";
-    }
+    if (!response.ok) return "none";
 
     const member = await response.json();
 
@@ -124,7 +126,8 @@ async function checkAuth(req, res, next) {
 
   const roleLevel = await getUserRoleLevel(req);
 
-  if (roleLevel === "none") return res.send("Access denied");
+  if (roleLevel === "none")
+    return res.send("Access denied");
 
   req.roleLevel = roleLevel;
 
@@ -140,7 +143,9 @@ app.get("/login", passport.authenticate("discord"));
 
 app.get(
   "/auth/callback",
-  passport.authenticate("discord", { failureRedirect: "/" }),
+  passport.authenticate("discord", {
+    failureRedirect: "/"
+  }),
   (req, res) => res.redirect("/dashboard")
 );
 
@@ -152,17 +157,21 @@ app.get("/logout", (req, res) => {
 DASHBOARD VIEW
 */
 app.get("/dashboard", checkAuth, (req, res) => {
-  db.all("SELECT * FROM battles ORDER BY date, time", [], (err, battles) => {
-    if (err) {
-      console.log("Database error:", err);
-      return res.status(500).send("Database error");
-    }
+  db.all(
+    "SELECT * FROM battles ORDER BY date, time",
+    [],
+    (err, battles) => {
+      if (err) {
+        console.log("Database error:", err);
+        return res.status(500).send("Database error");
+      }
 
-    res.render("dashboard", {
-      battles: battles || [],
-      roleLevel: req.roleLevel
-    });
-  });
+      res.render("dashboard", {
+        battles: battles || [],
+        roleLevel: req.roleLevel
+      });
+    }
+  );
 });
 
 /*
@@ -172,10 +181,12 @@ app.post("/create", checkAuth, (req, res) => {
   if (!["owner", "admin"].includes(req.roleLevel))
     return res.send("Permission denied");
 
-  const { host, opponent, date, time, poster, liveLink } = req.body;
+  const { host, opponent, date, time, poster, liveLink } =
+    req.body;
 
   db.run(
-    `INSERT INTO battles (host, opponent, date, time, poster, liveLink)
+    `INSERT INTO battles
+     (host, opponent, date, time, poster, liveLink)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [host, opponent, date, time, poster, liveLink]
   );
@@ -190,13 +201,22 @@ app.post("/edit/:id", checkAuth, (req, res) => {
   if (!["owner", "admin"].includes(req.roleLevel))
     return res.send("Permission denied");
 
-  const { host, opponent, date, time, poster, liveLink } = req.body;
+  const { host, opponent, date, time, poster, liveLink } =
+    req.body;
 
   db.run(
     `UPDATE battles
      SET host=?, opponent=?, date=?, time=?, poster=?, liveLink=?
      WHERE id=?`,
-    [host, opponent, date, time, poster, liveLink, req.params.id]
+    [
+      host,
+      opponent,
+      date,
+      time,
+      poster,
+      liveLink,
+      req.params.id
+    ]
   );
 
   res.redirect("/dashboard");
@@ -207,9 +227,14 @@ DELETE BATTLE (OWNER ONLY)
 */
 app.post("/delete/:id", checkAuth, (req, res) => {
   if (req.roleLevel !== "owner")
-    return res.send("Only Owners can delete battles");
+    return res.send(
+      "Only Owners can delete battles"
+    );
 
-  db.run(`DELETE FROM battles WHERE id=?`, [req.params.id]);
+  db.run(
+    `DELETE FROM battles WHERE id=?`,
+    [req.params.id]
+  );
 
   res.redirect("/dashboard");
 });
@@ -218,21 +243,29 @@ app.post("/delete/:id", checkAuth, (req, res) => {
 PUBLIC CALENDAR
 */
 app.get("/calendar", (req, res) => {
-  db.all("SELECT * FROM battles ORDER BY date, time", [], (err, battles) => {
-    if (err) return res.send("Database error");
+  db.all(
+    "SELECT * FROM battles ORDER BY date, time",
+    [],
+    (err, battles) => {
+      if (err)
+        return res.send("Database error");
 
-    res.render("calendar", {
-      battles: battles || []
-    });
-  });
+      res.render("calendar", {
+        battles: battles || []
+      });
+    }
+  );
 });
 
 /*
-API ENDPOINT FOR BOT SYNC
+API FOR BOT SYNC
 */
 app.get("/api/battles", (req, res) => {
   db.all("SELECT * FROM battles", [], (err, rows) => {
-    if (err) return res.status(500).json({ error: "Database error" });
+    if (err)
+      return res
+        .status(500)
+        .json({ error: "Database error" });
 
     res.json(rows);
   });
@@ -244,5 +277,7 @@ START SERVER
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
-  console.log(`🔥 Ember Empire dashboard running on port ${PORT}`);
+  console.log(
+    `🔥 Ember Empire dashboard running on port ${PORT}`
+  );
 });
