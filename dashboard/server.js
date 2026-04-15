@@ -12,7 +12,7 @@ const db = require("../database");
 const app = express();
 
 /*
-ENV CONFIG (Railway Variables)
+ENV CONFIG (Railway variables)
 */
 const config = {
   token: process.env.TOKEN,
@@ -27,7 +27,7 @@ const config = {
 };
 
 /*
-TEMP UPLOAD STORAGE
+UPLOAD TEMP STORAGE
 */
 const upload = multer({
   dest: path.join(
@@ -77,7 +77,7 @@ app.set(
 );
 
 /*
-STATIC FILE SERVING
+STATIC FILES
 */
 app.use(
   express.static(
@@ -226,7 +226,8 @@ app.get("/logout", (req, res) => {
 });
 
 /*
-DASHBOARD VIEW
+DASHBOARD (SHOW ALL BATTLES — INCLUDING POSTED ONES)
+IMPORTANT: no filtering by posted status
 */
 app.get(
   "/dashboard",
@@ -251,13 +252,14 @@ app.get(
 );
 
 /*
-CREATE BATTLE (UPLOAD + AUTO RESIZE)
+CREATE BATTLE
 */
 app.post(
   "/create",
   checkAuth,
   upload.single("poster"),
   async (req, res) => {
+
     if (
       !["owner", "admin"].includes(
         req.roleLevel
@@ -303,6 +305,7 @@ app.post(
   checkAuth,
   upload.single("poster"),
   async (req, res) => {
+
     if (
       !["owner", "admin"].includes(
         req.roleLevel
@@ -347,15 +350,20 @@ app.post(
 );
 
 /*
-DELETE BATTLE (OWNER ONLY)
+DELETE BATTLE (ADMIN + OWNER ONLY)
 */
 app.post(
   "/delete/:id",
   checkAuth,
   (req, res) => {
-    if (req.roleLevel !== "owner")
+
+    if (
+      !["owner", "admin"].includes(
+        req.roleLevel
+      )
+    )
       return res.send(
-        "Only Owners can delete battles"
+        "Only Admin or Owner can delete battles"
       );
 
     db.run(
@@ -368,13 +376,15 @@ app.post(
 );
 
 /*
-PUBLIC CALENDAR
+PUBLIC CALENDAR (MEMBERS INCLUDED)
 */
 app.get("/calendar", (req, res) => {
+
   db.all(
     "SELECT * FROM battles ORDER BY date, time",
     [],
     (err, battles) => {
+
       if (err)
         return res.send(
           "Database error"
@@ -383,29 +393,32 @@ app.get("/calendar", (req, res) => {
       res.render("calendar", {
         battles: battles || []
       });
+
     }
   );
+
 });
 
 /*
-API FOR DISCORD BOT SYNC
+API FOR BOT SYNC
 */
 app.get("/api/battles", (req, res) => {
+
   db.all(
     "SELECT * FROM battles",
     [],
     (err, rows) => {
+
       if (err)
-        return res
-          .status(500)
-          .json({
-            error:
-              "Database error"
-          });
+        return res.status(500).json({
+          error: "Database error"
+        });
 
       res.json(rows);
+
     }
   );
+
 });
 
 /*
