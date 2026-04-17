@@ -1,6 +1,12 @@
+require("dotenv").config();
+
 const { Client, GatewayIntentBits } = require("discord.js");
 const cron = require("node-cron");
 const db = require("./database");
+
+/*
+DISCORD CLIENT
+*/
 
 const client = new Client({
   intents: [
@@ -13,7 +19,9 @@ const client = new Client({
 FORMAT DATE
 DD/MM/YYYY
 */
+
 function getCurrentDate() {
+
   const now = new Date();
 
   return (
@@ -29,7 +37,9 @@ function getCurrentDate() {
 FORMAT TIME
 HH:MM
 */
+
 function getCurrentTime() {
+
   const now = new Date();
 
   return (
@@ -42,19 +52,36 @@ function getCurrentTime() {
 /*
 POST BATTLE TO DISCORD
 */
+
 async function postBattle(channel, battle) {
 
-  await channel.send({
+  const message = {
+
     content:
       `⚔ **Battle Starting Now!** ⚔\n\n` +
-      `🔥 ${battle.host} vs ${battle.opponent}\n\n` +
+      `🔥 <@${battle.host}> vs ${battle.opponent}\n\n` +
       (battle.liveLink
         ? `🔗 Watch here:\n${battle.liveLink}`
-        : ""),
-    files: battle.poster
-      ? ["." + battle.poster]
-      : []
-  });
+        : "")
+
+  };
+
+  /*
+  ATTACH POSTER IF EXISTS
+  */
+
+  if (battle.posterdata) {
+
+    message.files = [
+      {
+        attachment: battle.posterdata,
+        name: "battle.jpg"
+      }
+    ];
+
+  }
+
+  await channel.send(message);
 
   console.log(
     `✅ Posted battle: ${battle.host} vs ${battle.opponent}`
@@ -64,72 +91,91 @@ async function postBattle(channel, battle) {
 /*
 CHECK DATABASE EVERY MINUTE
 */
+
 async function checkBattles() {
 
-  const currentDate = getCurrentDate();
-  const currentTime = getCurrentTime();
+  try {
 
-  db.all(
-    "SELECT * FROM battles WHERE posted = 0",
-    [],
-    async (err, battles) => {
+    const currentDate = getCurrentDate();
+    const currentTime = getCurrentTime();
 
-      if (err) {
-        console.error(err);
-        return;
-      }
+    const result = await db.query(
 
-      if (!battles.length) return;
+      `SELECT *
+       FROM battles
+       WHERE posted = FALSE
+       OR posted IS NULL`
 
-      const channel = await client.channels.fetch(
+    );
+
+    const battles = result.rows;
+
+    if (!battles.length) return;
+
+    const channel =
+      await client.channels.fetch(
         process.env.BATTLE_CHANNEL_ID
       );
 
-      if (!channel) {
-        console.error("❌ Channel not found");
-        return;
-      }
+    if (!channel) {
 
-      for (const battle of battles) {
+      console.error("❌ Channel not found");
+      return;
 
-        if (
-          battle.date === currentDate &&
-          battle.time === currentTime
-        ) {
+    }
 
-          await postBattle(channel, battle);
+    for (const battle of battles) {
 
-          db.run(
-            "UPDATE battles SET posted = 1 WHERE id = ?",
-            [battle.id]
-          );
+      if (
+        battle.date === currentDate &&
+        battle.time === currentTime
+      ) {
 
-        }
+        await postBattle(channel, battle);
+
+        await db.query(
+
+          "UPDATE battles SET posted = TRUE WHERE id = $1",
+
+          [battle.id]
+
+        );
 
       }
 
     }
-  );
+
+  } catch (err) {
+
+    console.error("Battle check error:", err);
+
+  }
+
 }
+
+/*
+RUN CRON LOOP
+EVERY MINUTE
+*/
+
+cron.schedule("* * * * *", checkBattles);
 
 /*
 BOT READY EVENT
 */
+
 client.once("clientReady", () => {
 
   console.log(
     `🔥 Ember Empire Battle Bot online as ${client.user.tag}`
   );
 
-  cron.schedule("* * * * *", () => {
-    checkBattles();
-  });
-
 });
 
 /*
 LOGIN
 */
+
 client.login(process.env.TOKEN)
   .then(() =>
     console.log("✅ Discord login successful")

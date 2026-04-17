@@ -1,7 +1,7 @@
 const { Pool } = require("pg");
 
 /*
-Railway provides DATABASE_URL automatically
+Railway PostgreSQL connection
 */
 
 const pool = new Pool({
@@ -12,12 +12,16 @@ const pool = new Pool({
 });
 
 /*
-Create table if missing
+Create battles table + required columns
 */
 
 async function initDB() {
 
   try {
+
+    /*
+    Create table if missing
+    */
 
     await pool.query(`
 
@@ -35,13 +39,26 @@ async function initDB() {
 
         posterData BYTEA,
 
-        liveLink TEXT
+        liveLink TEXT,
+
+        posted BOOLEAN DEFAULT FALSE
 
       )
 
     `);
 
-    console.log("✅ PostgreSQL connected & table ready");
+    /*
+    Ensure posted column exists for older tables
+    */
+
+    await pool.query(`
+
+      ALTER TABLE battles
+      ADD COLUMN IF NOT EXISTS posted BOOLEAN DEFAULT FALSE
+
+    `);
+
+    console.log("✅ PostgreSQL connected & schema synced successfully");
 
   } catch (err) {
 
