@@ -27,8 +27,7 @@ UPLOAD TEMP STORAGE
 const upload = multer({ dest: "tmp/" });
 
 /*
-POSTER PROCESSOR
-AUTO RESIZE 1080x1080
+AUTO RESIZE POSTER
 */
 async function processPoster(file) {
 
@@ -51,8 +50,7 @@ EXPRESS CONFIG
 */
 app.set("view engine","ejs");
 
-app.set(
-"views",
+app.set("views",
 process.cwd()+"/dashboard/views"
 );
 
@@ -122,7 +120,7 @@ Authorization:`Bot ${process.env.TOKEN}`
 
 );
 
-const roles = response.data.roles || [];
+const roles=response.data.roles || [];
 
 if(roles.some(r=>OWNER_ROLES.includes(r)))
 return "owner";
@@ -138,7 +136,6 @@ return "none";
 }catch(err){
 
 console.log("Role lookup error:",err.message);
-
 return "none";
 
 }
@@ -165,7 +162,6 @@ next();
 
 /*
 POSTER ENDPOINT
-SERVES IMAGE FROM DATABASE
 */
 app.get("/poster/:id", async(req,res)=>{
 
@@ -188,7 +184,6 @@ res.send(result.rows[0].posterdata);
 }catch(err){
 
 console.log("Poster fetch error:",err.message);
-
 res.sendStatus(500);
 
 }
@@ -216,29 +211,69 @@ passport.authenticate(
 
 );
 
-app.get(
-"/logout",
+app.get("/logout",
 (req,res)=>req.logout(()=>res.redirect("/"))
 );
 
 /*
+FETCH DISCORD MEMBERS
+*/
+async function getNicknameMap(){
+
+const response =
+await axios.get(
+
+`https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members?limit=1000`,
+
+{
+headers:{
+Authorization:`Bot ${process.env.TOKEN}`
+}
+}
+
+);
+
+const map={};
+
+response.data.forEach(member=>{
+
+map[member.user.id] =
+member.nick ||
+member.user.global_name ||
+member.user.username;
+
+});
+
+return map;
+
+}
+
+/*
 DASHBOARD
 */
-app.get(
-"/dashboard",
+app.get("/dashboard",checkAuth,async(req,res)=>{
 
-checkAuth,
-
-async(req,res)=>{
-
-const battles =
+const result =
 await db.query(
 "SELECT * FROM battles ORDER BY date,time"
 );
 
+const nicknameMap =
+await getNicknameMap();
+
+const battles =
+result.rows.map(b=>({
+
+...b,
+
+hostName:
+nicknameMap[b.host] || b.host
+
+}));
+
 res.render("dashboard",{
 
-battles:battles.rows,
+battles,
 roleLevel:req.roleLevel
 
 });
@@ -248,13 +283,9 @@ roleLevel:req.roleLevel
 /*
 CREATE BATTLE
 */
-app.post(
-"/create",
-
+app.post("/create",
 checkAuth,
-
 upload.single("poster"),
-
 async(req,res)=>{
 
 if(!["owner","admin"].includes(req.roleLevel))
@@ -266,11 +297,9 @@ await processPoster(req.file);
 await db.query(
 
 `INSERT INTO battles
-(host,opponent,date,time,posterData,
-liveLink,managerGifting,adultOnly,
-powerUps,noHammers)
+(host,opponent,date,time,posterData,liveLink)
 
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+VALUES ($1,$2,$3,$4,$5,$6)`,
 
 [
 req.body.host,
@@ -278,11 +307,7 @@ req.body.opponent,
 req.body.date,
 req.body.time,
 posterBuffer,
-req.body.liveLink,
-req.body.managerGifting==="true",
-req.body.adultOnly==="true",
-req.body.powerUps==="true",
-req.body.noHammers==="true"
+req.body.liveLink
 ]
 
 );
@@ -292,11 +317,9 @@ POST TO DISCORD
 */
 try{
 
-const form = new FormData();
+const form=new FormData();
 
-form.append(
-
-"content",
+form.append("content",
 
 `🔥 **New Battle Scheduled**
 
@@ -305,19 +328,8 @@ form.append(
 📅 ${req.body.date}
 ⏰ ${req.body.time}
 
-🎁 Manager Gifting:
-${req.body.managerGifting==="true"?"Allowed":"Disabled"}
-
-🔞 18+:
-${req.body.adultOnly==="true"?"Enabled":"Disabled"}
-
-⚡ Power Ups:
-${req.body.powerUps==="true"?"Allowed":"Disabled"}
-
-🔨 No Hammers:
-${req.body.noHammers==="true"?"Enabled":"Disabled"}
-
 ${req.body.liveLink || ""}`
+
 );
 
 if(posterBuffer){
@@ -359,42 +371,10 @@ res.redirect("/dashboard");
 });
 
 /*
-REPLACE POSTER
-*/
-app.post(
-"/replace-poster/:id",
-
-checkAuth,
-
-upload.single("poster"),
-
-async(req,res)=>{
-
-if(!["owner","admin"].includes(req.roleLevel))
-return res.redirect("/dashboard");
-
-const posterBuffer =
-await processPoster(req.file);
-
-await db.query(
-
-"UPDATE battles SET posterData=$1 WHERE id=$2",
-
-[posterBuffer,req.params.id]
-);
-
-res.redirect("/dashboard");
-
-});
-
-/*
 DELETE BATTLE
 */
-app.post(
-"/delete/:id",
-
+app.post("/delete/:id",
 checkAuth,
-
 async(req,res)=>{
 
 if(!["owner","admin"].includes(req.roleLevel))
@@ -410,23 +390,29 @@ res.redirect("/dashboard");
 });
 
 /*
-CALENDAR VIEW
+CALENDAR
 */
-app.get(
-"/calendar",
+app.get("/calendar",async(req,res)=>{
 
-async(req,res)=>{
-
-const battles =
+const result =
 await db.query(
 "SELECT * FROM battles ORDER BY date,time"
 );
 
-res.render("calendar",{
+const nicknameMap =
+await getNicknameMap();
 
-battles:battles.rows
+const battles =
+result.rows.map(b=>({
 
-});
+...b,
+
+hostName:
+nicknameMap[b.host] || b.host
+
+}));
+
+res.render("calendar",{battles});
 
 });
 

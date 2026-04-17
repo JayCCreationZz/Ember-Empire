@@ -12,7 +12,6 @@ body{
 background:linear-gradient(135deg,#020617,#0f172a);
 }
 
-/* glow card styling */
 .card{
 background:rgba(30,41,59,.75);
 backdrop-filter:blur(12px);
@@ -41,14 +40,12 @@ object-fit:cover;
 <div class="max-w-7xl mx-auto px-6 py-10 relative z-0">
 
 <!-- HEADER -->
-<div class="flex items-center justify-between mb-10 relative z-50">
+<div class="flex items-center justify-between mb-10">
 
 <div class="flex items-center gap-4">
 
-<img
-src="/logo.png"
-class="w-14 h-14 drop-shadow-[0_0_14px_rgba(255,90,0,0.75)]"
-/>
+<img src="/logo.png"
+class="w-14 h-14 drop-shadow-[0_0_14px_rgba(255,90,0,0.75)]">
 
 <h1 class="text-3xl font-bold">
 Ember Empire Dashboard
@@ -56,122 +53,62 @@ Ember Empire Dashboard
 
 </div>
 
-
-<!-- DROPDOWN MENU -->
-<div class="relative z-50">
-
-<button
-onclick="toggleMenu()"
-class="bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-xl shadow-lg transition"
->
-Menu ☰
-</button>
-
-<div
-id="dropdownMenu"
-class="hidden absolute right-0 mt-3 w-56 bg-gray-900 rounded-xl shadow-xl border border-orange-500/30 overflow-hidden z-50"
->
-
-<a href="/dashboard"
-class="block px-4 py-3 hover:bg-orange-500/20">
-⚔ Dashboard
-</a>
-
 <a href="/calendar"
-class="block px-4 py-3 hover:bg-orange-500/20">
-📅 Calendar
+class="bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-xl shadow-lg">
+Calendar 📅
 </a>
 
+</div>
+
+
+<!-- CREATE PANEL -->
 <% if(roleLevel === "owner" || roleLevel === "admin"){ %>
 
-<a href="#createBattle"
-class="block px-4 py-3 hover:bg-orange-500/20">
-➕ Create Battle
-</a>
-
-<% } %>
-
-<% if(roleLevel === "owner"){ %>
-
-<a href="#manageBattles"
-class="block px-4 py-3 hover:bg-orange-500/20">
-🛠 Manage Battles
-</a>
-
-<% } %>
-
-<a href="/logout"
-class="block px-4 py-3 hover:bg-red-500/30">
-🚪 Logout
-</a>
-
-</div>
-</div>
-
-</div>
-
-
-<!-- CREATE BATTLE PANEL -->
-<% if(roleLevel === "owner" || roleLevel === "admin"){ %>
-
-<div id="createBattle" class="card p-6 mb-12">
+<div class="card p-6 mb-12">
 
 <h2 class="text-2xl font-semibold mb-5">
 Create Battle
 </h2>
 
-<form
-action="/create"
+<form action="/create"
 method="POST"
 enctype="multipart/form-data"
-class="grid md:grid-cols-2 gap-4"
->
+class="grid md:grid-cols-2 gap-4">
 
-<input
-name="host"
-placeholder="Host"
+<input name="host"
+placeholder="Host Discord ID"
 required
-class="bg-gray-800 p-3 rounded-lg"
-/>
+class="bg-gray-800 p-3 rounded-lg">
 
-<input
-name="opponent"
-placeholder="Opponent"
+<input name="opponent"
+placeholder="Opponent TikTok username"
 required
-class="bg-gray-800 p-3 rounded-lg"
-/>
+class="bg-gray-800 p-3 rounded-lg">
 
-<input
-name="date"
-placeholder="DD/MM/YYYY"
+<input name="date"
+type="date"
 required
-class="bg-gray-800 p-3 rounded-lg"
-/>
+class="bg-gray-800 p-3 rounded-lg">
 
-<input
-name="time"
-placeholder="HH:MM"
+<input name="time"
+type="time"
 required
-class="bg-gray-800 p-3 rounded-lg"
-/>
+class="bg-gray-800 p-3 rounded-lg">
 
-<input
-name="liveLink"
+<input name="liveLink"
 placeholder="Live link (optional)"
-class="bg-gray-800 p-3 rounded-lg md:col-span-2"
-/>
+class="bg-gray-800 p-3 rounded-lg md:col-span-2">
 
-<input
-type="file"
+<input type="file"
 name="poster"
 accept="image/*"
-class="bg-gray-800 p-3 rounded-lg md:col-span-2"
-/>
+class="bg-gray-800 p-3 rounded-lg md:col-span-2">
 
 <button
-class="bg-orange-500 hover:bg-orange-600 py-3 rounded-lg md:col-span-2"
->
+class="bg-orange-500 hover:bg-orange-600 py-3 rounded-lg md:col-span-2">
+
 Create Battle
+
 </button>
 
 </form>
@@ -181,38 +118,21 @@ Create Battle
 <% } %>
 
 
-<!-- SCHEDULED BATTLES -->
-<div id="manageBattles">
-
-<h2 class="text-2xl font-semibold mb-6">
-Scheduled Battles
-</h2>
-
-<% if(!battles.length){ %>
-
-<div class="text-gray-400">
-No battles scheduled yet ⚔
-</div>
-
-<% } else { %>
-
+<!-- BATTLES GRID -->
 <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
 
 <% battles.forEach(battle=>{ %>
 
 <div class="card p-5">
 
-<% if(battle.poster){ %>
-
 <img
-src="<%= battle.poster %>"
-class="poster-thumb mb-4"
-/>
-
-<% } %>
+src="/poster/<%= battle.id %>?t=<%= Date.now() %>"
+class="poster-thumb mb-4">
 
 <h3 class="text-lg font-semibold text-orange-400">
+
 🔥 <%= battle.host %> vs <%= battle.opponent %>
+
 </h3>
 
 <p class="text-gray-300">
@@ -225,29 +145,26 @@ class="poster-thumb mb-4"
 
 <% if(battle.liveLink){ %>
 
-<a
-href="<%= battle.liveLink %>"
+<a href="<%= battle.liveLink %>"
 target="_blank"
-class="inline-block bg-orange-500 hover:bg-orange-600 px-3 py-2 rounded-lg mb-3"
->
+class="inline-block bg-orange-500 hover:bg-orange-600 px-3 py-2 rounded-lg mb-3">
+
 Watch Battle 🔗
+
 </a>
 
 <% } %>
 
-
-<!-- OWNER DELETE BUTTON -->
 <% if(roleLevel === "owner"){ %>
 
-<form
-action="/delete/<%= battle.id %>"
-method="POST"
->
+<form action="/delete/<%= battle.id %>"
+method="POST">
 
 <button
-class="bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg"
->
+class="bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg">
+
 Delete Battle
+
 </button>
 
 </form>
@@ -260,26 +177,7 @@ Delete Battle
 
 </div>
 
-<% } %>
-
 </div>
-
-</div>
-
-
-<script>
-function toggleMenu(){
-const menu=document.getElementById("dropdownMenu");
-menu.classList.toggle("hidden");
-}
-
-window.onclick=function(event){
-if(!event.target.closest(".relative")){
-const menu=document.getElementById("dropdownMenu");
-if(menu) menu.classList.add("hidden");
-}
-}
-</script>
 
 </body>
 </html>
