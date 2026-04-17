@@ -1,35 +1,56 @@
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
+const { Pool } = require("pg");
 
 /*
-SHARED DATABASE PATH
-Ensures dashboard + bot use same DB
+Railway provides DATABASE_URL automatically
 */
-const dbPath = path.join(process.cwd(), "emberempire.db");
 
-const db = new sqlite3.Database(dbPath, err => {
-  if (err) {
-    console.error("❌ Database connection error:", err);
-  } else {
-    console.log("✅ Connected to SQLite database");
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
   }
 });
 
 /*
-CREATE TABLE
-Includes posted flag for scheduler tracking
+Create table if missing
 */
-db.run(`
-CREATE TABLE IF NOT EXISTS battles (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  host TEXT,
-  opponent TEXT,
-  date TEXT,
-  time TEXT,
-  poster TEXT,
-  liveLink TEXT,
-  posted INTEGER DEFAULT 0
-)
-`);
 
-module.exports = db;
+async function initDB() {
+
+  try {
+
+    await pool.query(`
+
+      CREATE TABLE IF NOT EXISTS battles (
+
+        id SERIAL PRIMARY KEY,
+
+        host TEXT,
+
+        opponent TEXT,
+
+        date TEXT,
+
+        time TEXT,
+
+        posterData BYTEA,
+
+        liveLink TEXT
+
+      )
+
+    `);
+
+    console.log("✅ PostgreSQL connected & table ready");
+
+  } catch (err) {
+
+    console.error("❌ PostgreSQL init error:", err);
+
+  }
+
+}
+
+initDB();
+
+module.exports = pool;

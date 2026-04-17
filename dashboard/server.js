@@ -19,69 +19,56 @@ ROLE IDS
 */
 const OWNER_ROLES = ["1465436891238367284"];
 const ADMIN_ROLES = ["1493636042354331779"];
-const MEMBER_ROLES = ["1458157807361720426"];
+const CREATOR_ROLES = ["1458157807361720426"];
 
 /*
-AGENCY CREATOR ROLES
-Only users with these roles appear in dropdown
-*/
-const CREATOR_ROLES = [
-"1458157807361720426"
-];
-
-/*
-UPLOAD TEMP STORAGE
+UPLOAD STORAGE
 */
 const upload = multer({ dest: "tmp/" });
 
 /*
-AUTO RESIZE POSTER
+POSTER RESIZE
 */
-async function processPoster(file){
+async function processPoster(file) {
 
-if(!file) return null;
+  if (!file) return null;
 
-const buffer =
-await sharp(file.path)
-.resize(1080,1080,{fit:"cover"})
-.jpeg({quality:92})
-.toBuffer();
+  const buffer = await sharp(file.path)
+    .resize(1080, 1080, { fit: "cover" })
+    .jpeg({ quality: 92 })
+    .toBuffer();
 
-fs.unlinkSync(file.path);
+  fs.unlinkSync(file.path);
 
-return buffer;
+  return buffer;
 }
 
 /*
 EXPRESS CONFIG
 */
-app.set("view engine","ejs");
+app.set("view engine", "ejs");
 
-app.set("views",
-process.cwd()+"/dashboard/views"
+app.set(
+  "views",
+  process.cwd() + "/dashboard/views"
 );
 
 app.use(express.static(
-process.cwd()+"/dashboard/public"
+  process.cwd() + "/dashboard/public"
 ));
 
-app.use(express.urlencoded({extended:true}));
+app.use(express.urlencoded({ extended: true }));
 
-app.set("trust proxy",1);
+app.set("trust proxy", 1);
 
 app.use(session({
-
-secret:
-process.env.SESSION_SECRET || "ember-empire-secret",
-
-resave:false,
-saveUninitialized:false,
-
-cookie:{
-secure:true,
-sameSite:"none"
-}
-
+  secret: process.env.SESSION_SECRET || "ember-secret",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: true,
+    sameSite: "none"
+  }
 }));
 
 app.use(passport.initialize());
@@ -92,14 +79,14 @@ DISCORD LOGIN
 */
 passport.use(new DiscordStrategy({
 
-clientID:process.env.CLIENT_ID,
-clientSecret:process.env.CLIENT_SECRET,
-callbackURL:process.env.CALLBACK_URL,
-scope:["identify"]
+  clientID: process.env.CLIENT_ID,
+  clientSecret: process.env.CLIENT_SECRET,
+  callbackURL: process.env.CALLBACK_URL,
+  scope: ["identify"]
 
 },
-
-(a,b,profile,done)=>done(null,profile)
+(accessToken, refreshToken, profile, done) =>
+done(null, profile)
 ));
 
 passport.serializeUser((u,d)=>d(null,u));
@@ -110,10 +97,7 @@ ROLE CHECK
 */
 async function getUserRoleLevel(req){
 
-try{
-
-const response =
-await axios.get(
+const response = await axios.get(
 
 `https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members/${req.user.id}`,
 
@@ -121,32 +105,32 @@ await axios.get(
 headers:{
 Authorization:`Bot ${process.env.TOKEN}`
 }
-}
+});
 
-);
+const roles = response.data.roles || [];
 
-const roles=response.data.roles || [];
+if(roles.some(r=>OWNER_ROLES.includes(r))) return "owner";
+if(roles.some(r=>ADMIN_ROLES.includes(r))) return "admin";
 
-if(roles.some(r=>OWNER_ROLES.includes(r)))
-return "owner";
-
-if(roles.some(r=>ADMIN_ROLES.includes(r)))
-return "admin";
-
-if(roles.some(r=>MEMBER_ROLES.includes(r)))
 return "member";
-
-return "none";
-
-}catch(err){
-
-return "none";
-
-}
 }
 
 /*
-FETCH CREATOR LIST
+AUTH
+*/
+async function checkAuth(req,res,next){
+
+if(!req.isAuthenticated())
+return res.redirect("/");
+
+req.roleLevel =
+await getUserRoleLevel(req);
+
+next();
+}
+
+/*
+GET CREATORS
 */
 async function getCreators(){
 
@@ -159,16 +143,13 @@ await axios.get(
 headers:{
 Authorization:`Bot ${process.env.TOKEN}`
 }
-}
-
-);
+});
 
 return response.data
 .filter(member =>
 member.roles.some(role =>
 CREATOR_ROLES.includes(role)
-)
-)
+))
 .map(member=>({
 
 id:member.user.id,
@@ -179,30 +160,12 @@ member.user.global_name ||
 member.user.username
 
 }));
-
-}
-
-/*
-AUTH CHECK
-*/
-async function checkAuth(req,res,next){
-
-if(!req.isAuthenticated())
-return res.redirect("/");
-
-req.roleLevel =
-await getUserRoleLevel(req);
-
-if(req.roleLevel==="none")
-return res.send("Access denied");
-
-next();
 }
 
 /*
 POSTER ENDPOINT
 */
-app.get("/poster/:id",async(req,res)=>{
+app.get("/poster/:id", async(req,res)=>{
 
 const result =
 await db.query(
@@ -216,7 +179,6 @@ return res.sendStatus(404);
 res.set("Content-Type","image/jpeg");
 
 res.send(result.rows[0].posterdata);
-
 });
 
 /*
@@ -234,7 +196,6 @@ passport.authenticate("discord",
 {failureRedirect:"/"}),
 
 (req,res)=>res.redirect("/dashboard")
-
 );
 
 app.get("/logout",
@@ -281,7 +242,6 @@ creators,
 roleLevel:req.roleLevel
 
 });
-
 });
 
 /*
@@ -314,14 +274,12 @@ req.body.date,
 req.body.time,
 posterBuffer,
 req.body.liveLink
-]
-
-);
+]);
 
 /*
-DISCORD POST
+POST TO DISCORD
 */
-const form=new FormData();
+const form = new FormData();
 
 form.append("content",
 
@@ -332,7 +290,7 @@ form.append("content",
 📅 ${req.body.date}
 ⏰ ${req.body.time}
 
-${req.body.liveLink||""}`
+${req.body.liveLink || ""}`
 );
 
 if(posterBuffer){
@@ -343,9 +301,7 @@ posterBuffer,
 {
 filename:"battle.jpg",
 contentType:"image/jpeg"
-}
-);
-
+});
 }
 
 await axios.post(
@@ -359,12 +315,9 @@ headers:{
 Authorization:`Bot ${process.env.TOKEN}`,
 ...form.getHeaders()
 }
-}
-
-);
+});
 
 res.redirect("/dashboard");
-
 });
 
 /*
@@ -385,7 +338,6 @@ await db.query(
 );
 
 res.redirect("/dashboard");
-
 });
 
 /*
@@ -400,24 +352,18 @@ await db.query(
 "SELECT * FROM battles ORDER BY date,time"
 );
 
-res.render("calendar",{
-
-battles:battles.rows
-
-});
-
+res.render("calendar",{battles:battles.rows});
 });
 
 /*
 START SERVER
 */
-const PORT=
-process.env.PORT||8080;
+const PORT =
+process.env.PORT || 8080;
 
 app.listen(PORT,()=>{
 
 console.log(
 "🔥 Ember Empire dashboard running on "+PORT
 );
-
 });
