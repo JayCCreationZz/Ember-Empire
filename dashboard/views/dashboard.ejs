@@ -1,51 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Ember Empire Dashboard</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
+
 body{
 background:linear-gradient(135deg,#020617,#0f172a);
 }
 
+/* GLASS CARD */
+
 .card{
 background:rgba(30,41,59,.75);
-backdrop-filter:blur(12px);
+backdrop-filter:blur(14px);
 border-radius:18px;
-border:1px solid rgba(255,120,0,.2);
+border:1px solid rgba(255,120,0,.25);
 transition:.25s ease;
 }
 
 .card:hover{
-transform:translateY(-4px);
+transform:translateY(-5px);
 box-shadow:
-0 0 20px rgba(255,120,0,.45),
-0 0 40px rgba(255,60,0,.25);
+0 0 25px rgba(255,120,0,.45),
+0 0 45px rgba(255,60,0,.25);
 }
 
-.poster-thumb{
+/* POSTER */
+
+.poster{
 border-radius:12px;
-max-height:160px;
+max-height:170px;
 object-fit:cover;
 }
+
+/* LOGO ANIMATION */
+
+.logo{
+animation:pulseGlow 2.5s infinite ease-in-out;
+}
+
+@keyframes pulseGlow{
+
+0%{
+filter:drop-shadow(0 0 8px rgba(255,120,0,.4));
+}
+
+50%{
+filter:
+drop-shadow(0 0 20px rgba(255,120,0,.9))
+drop-shadow(0 0 40px rgba(255,60,0,.5));
+}
+
+100%{
+filter:drop-shadow(0 0 8px rgba(255,120,0,.4));
+}
+
+}
+
 </style>
+
 </head>
 
 <body class="text-white min-h-screen">
 
-<div class="max-w-7xl mx-auto px-6 py-10 relative z-0">
+<div class="max-w-7xl mx-auto px-6 py-10">
 
 <!-- HEADER -->
+
 <div class="flex items-center justify-between mb-10">
 
 <div class="flex items-center gap-4">
 
-<img src="/logo.png"
-class="w-14 h-14 drop-shadow-[0_0_14px_rgba(255,90,0,0.75)]">
+<img
+src="/logo.png"
+class="logo w-14 h-14"
+/>
 
 <h1 class="text-3xl font-bold">
 Ember Empire Dashboard
@@ -53,15 +89,31 @@ Ember Empire Dashboard
 
 </div>
 
-<a href="/calendar"
-class="bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-xl shadow-lg">
+<div class="flex gap-3">
+
+<a
+href="/calendar"
+class="bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-xl shadow">
+
 Calendar 📅
+
 </a>
+
+<a
+href="/logout"
+class="bg-red-600 hover:bg-red-700 px-5 py-2 rounded-xl shadow">
+
+Logout
+
+</a>
+
+</div>
 
 </div>
 
 
 <!-- CREATE PANEL -->
+
 <% if(roleLevel === "owner" || roleLevel === "admin"){ %>
 
 <div class="card p-6 mb-12">
@@ -70,39 +122,80 @@ Calendar 📅
 Create Battle
 </h2>
 
-<form action="/create"
+<form
+action="/create"
 method="POST"
 enctype="multipart/form-data"
-class="grid md:grid-cols-2 gap-4">
+class="grid md:grid-cols-2 gap-4"
+>
 
-<input name="host"
-placeholder="Host Discord ID"
+<!-- CREATOR SELECT -->
+
+<select
+name="host"
 required
-class="bg-gray-800 p-3 rounded-lg">
+class="bg-gray-800 p-3 rounded-lg"
+>
 
-<input name="opponent"
+<% creators.forEach(member=>{ %>
+
+<option value="<%= member.id %>">
+<%= member.name %>
+</option>
+
+<% }) %>
+
+</select>
+
+
+<!-- OPPONENT -->
+
+<input
+name="opponent"
 placeholder="Opponent TikTok username"
 required
-class="bg-gray-800 p-3 rounded-lg">
+class="bg-gray-800 p-3 rounded-lg"
+/>
 
-<input name="date"
+
+<!-- DATE -->
+
+<input
 type="date"
+name="date"
 required
-class="bg-gray-800 p-3 rounded-lg">
+class="bg-gray-800 p-3 rounded-lg"
+/>
 
-<input name="time"
+
+<!-- TIME -->
+
+<input
 type="time"
+name="time"
 required
-class="bg-gray-800 p-3 rounded-lg">
+class="bg-gray-800 p-3 rounded-lg"
+/>
 
-<input name="liveLink"
+
+<!-- LIVE LINK -->
+
+<input
+name="liveLink"
 placeholder="Live link (optional)"
-class="bg-gray-800 p-3 rounded-lg md:col-span-2">
+class="bg-gray-800 p-3 rounded-lg md:col-span-2"
+/>
 
-<input type="file"
+
+<!-- POSTER -->
+
+<input
+type="file"
 name="poster"
 accept="image/*"
-class="bg-gray-800 p-3 rounded-lg md:col-span-2">
+class="bg-gray-800 p-3 rounded-lg md:col-span-2"
+/>
+
 
 <button
 class="bg-orange-500 hover:bg-orange-600 py-3 rounded-lg md:col-span-2">
@@ -118,34 +211,63 @@ Create Battle
 <% } %>
 
 
-<!-- BATTLES GRID -->
+<!-- BATTLE GRID -->
+
+<h2 class="text-2xl font-semibold mb-6">
+Scheduled Battles
+</h2>
+
+<% if(!battles.length){ %>
+
+<div class="text-gray-400">
+No battles scheduled yet ⚔
+</div>
+
+<% } else { %>
+
 <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
 
 <% battles.forEach(battle=>{ %>
 
 <div class="card p-5">
 
+<!-- POSTER -->
+
 <img
 src="/poster/<%= battle.id %>?t=<%= Date.now() %>"
-class="poster-thumb mb-4">
+class="poster mb-4"
+/>
+
+
+<!-- TITLE -->
 
 <h3 class="text-lg font-semibold text-orange-400">
 
-🔥 <%= battle.host %> vs <%= battle.opponent %>
+🔥 <%= battle.hostName %> vs <%= battle.opponent %>
 
 </h3>
+
+
+<!-- DATE -->
 
 <p class="text-gray-300">
 📅 <%= battle.date %>
 </p>
 
-<p class="text-gray-300 mb-2">
+
+<!-- TIME -->
+
+<p class="text-gray-300 mb-3">
 ⏰ <%= battle.time %>
 </p>
 
+
+<!-- LIVE LINK -->
+
 <% if(battle.liveLink){ %>
 
-<a href="<%= battle.liveLink %>"
+<a
+href="<%= battle.liveLink %>"
 target="_blank"
 class="inline-block bg-orange-500 hover:bg-orange-600 px-3 py-2 rounded-lg mb-3">
 
@@ -155,9 +277,13 @@ Watch Battle 🔗
 
 <% } %>
 
-<% if(roleLevel === "owner"){ %>
 
-<form action="/delete/<%= battle.id %>"
+<!-- DELETE BUTTON -->
+
+<% if(roleLevel === "owner" || roleLevel === "admin"){ %>
+
+<form
+action="/delete/<%= battle.id %>"
 method="POST">
 
 <button
@@ -176,6 +302,8 @@ Delete Battle
 <% }) %>
 
 </div>
+
+<% } %>
 
 </div>
 

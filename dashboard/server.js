@@ -15,11 +15,19 @@ const db = require("../database");
 const app = express();
 
 /*
-ROLE IDS (EMBER EMPIRE)
+ROLE IDS
 */
 const OWNER_ROLES = ["1465436891238367284"];
 const ADMIN_ROLES = ["1493636042354331779"];
 const MEMBER_ROLES = ["1458157807361720426"];
+
+/*
+AGENCY CREATOR ROLES
+Only users with these roles appear in dropdown
+*/
+const CREATOR_ROLES = [
+"1458157807361720426"
+];
 
 /*
 UPLOAD TEMP STORAGE
@@ -29,9 +37,9 @@ const upload = multer({ dest: "tmp/" });
 /*
 AUTO RESIZE POSTER
 */
-async function processPoster(file) {
+async function processPoster(file){
 
-if (!file) return null;
+if(!file) return null;
 
 const buffer =
 await sharp(file.path)
@@ -42,7 +50,6 @@ await sharp(file.path)
 fs.unlinkSync(file.path);
 
 return buffer;
-
 }
 
 /*
@@ -92,16 +99,14 @@ scope:["identify"]
 
 },
 
-(accessToken,refreshToken,profile,done)=>
-done(null,profile)
-
+(a,b,profile,done)=>done(null,profile)
 ));
 
 passport.serializeUser((u,d)=>d(null,u));
 passport.deserializeUser((o,d)=>d(null,o));
 
 /*
-ROLE LOOKUP
+ROLE CHECK
 */
 async function getUserRoleLevel(req){
 
@@ -135,10 +140,45 @@ return "none";
 
 }catch(err){
 
-console.log("Role lookup error:",err.message);
 return "none";
 
 }
+}
+
+/*
+FETCH CREATOR LIST
+*/
+async function getCreators(){
+
+const response =
+await axios.get(
+
+`https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members?limit=1000`,
+
+{
+headers:{
+Authorization:`Bot ${process.env.TOKEN}`
+}
+}
+
+);
+
+return response.data
+.filter(member =>
+member.roles.some(role =>
+CREATOR_ROLES.includes(role)
+)
+)
+.map(member=>({
+
+id:member.user.id,
+
+name:
+member.nick ||
+member.user.global_name ||
+member.user.username
+
+}));
 
 }
 
@@ -157,15 +197,12 @@ if(req.roleLevel==="none")
 return res.send("Access denied");
 
 next();
-
 }
 
 /*
 POSTER ENDPOINT
 */
-app.get("/poster/:id", async(req,res)=>{
-
-try{
+app.get("/poster/:id",async(req,res)=>{
 
 const result =
 await db.query(
@@ -173,20 +210,12 @@ await db.query(
 [req.params.id]
 );
 
-if(!result.rows.length ||
-!result.rows[0].posterdata)
+if(!result.rows.length)
 return res.sendStatus(404);
 
 res.set("Content-Type","image/jpeg");
 
 res.send(result.rows[0].posterdata);
-
-}catch(err){
-
-console.log("Poster fetch error:",err.message);
-res.sendStatus(500);
-
-}
 
 });
 
@@ -199,13 +228,10 @@ app.get("/login",
 passport.authenticate("discord")
 );
 
-app.get(
-"/auth/callback",
+app.get("/auth/callback",
 
-passport.authenticate(
-"discord",
-{failureRedirect:"/"}
-),
+passport.authenticate("discord",
+{failureRedirect:"/"}),
 
 (req,res)=>res.redirect("/dashboard")
 
@@ -216,53 +242,30 @@ app.get("/logout",
 );
 
 /*
-FETCH DISCORD MEMBERS
-*/
-async function getNicknameMap(){
-
-const response =
-await axios.get(
-
-`https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members?limit=1000`,
-
-{
-headers:{
-Authorization:`Bot ${process.env.TOKEN}`
-}
-}
-
-);
-
-const map={};
-
-response.data.forEach(member=>{
-
-map[member.user.id] =
-member.nick ||
-member.user.global_name ||
-member.user.username;
-
-});
-
-return map;
-
-}
-
-/*
 DASHBOARD
 */
-app.get("/dashboard",checkAuth,async(req,res)=>{
+app.get("/dashboard",
 
-const result =
+checkAuth,
+
+async(req,res)=>{
+
+const battles =
 await db.query(
 "SELECT * FROM battles ORDER BY date,time"
 );
 
-const nicknameMap =
-await getNicknameMap();
+const creators =
+await getCreators();
 
-const battles =
-result.rows.map(b=>({
+const nicknameMap = {};
+
+creators.forEach(c=>{
+nicknameMap[c.id]=c.name;
+});
+
+const formattedBattles =
+battles.rows.map(b=>({
 
 ...b,
 
@@ -273,7 +276,8 @@ nicknameMap[b.host] || b.host
 
 res.render("dashboard",{
 
-battles,
+battles:formattedBattles,
+creators,
 roleLevel:req.roleLevel
 
 });
@@ -284,8 +288,10 @@ roleLevel:req.roleLevel
 CREATE BATTLE
 */
 app.post("/create",
+
 checkAuth,
 upload.single("poster"),
+
 async(req,res)=>{
 
 if(!["owner","admin"].includes(req.roleLevel))
@@ -313,10 +319,8 @@ req.body.liveLink
 );
 
 /*
-POST TO DISCORD
+DISCORD POST
 */
-try{
-
 const form=new FormData();
 
 form.append("content",
@@ -328,8 +332,7 @@ form.append("content",
 📅 ${req.body.date}
 ⏰ ${req.body.time}
 
-${req.body.liveLink || ""}`
-
+${req.body.liveLink||""}`
 );
 
 if(posterBuffer){
@@ -360,21 +363,17 @@ Authorization:`Bot ${process.env.TOKEN}`,
 
 );
 
-}catch(err){
-
-console.log("Discord post failed:",err.message);
-
-}
-
 res.redirect("/dashboard");
 
 });
 
 /*
-DELETE BATTLE
+DELETE
 */
 app.post("/delete/:id",
+
 checkAuth,
+
 async(req,res)=>{
 
 if(!["owner","admin"].includes(req.roleLevel))
@@ -392,40 +391,33 @@ res.redirect("/dashboard");
 /*
 CALENDAR
 */
-app.get("/calendar",async(req,res)=>{
+app.get("/calendar",
 
-const result =
+async(req,res)=>{
+
+const battles =
 await db.query(
 "SELECT * FROM battles ORDER BY date,time"
 );
 
-const nicknameMap =
-await getNicknameMap();
+res.render("calendar",{
 
-const battles =
-result.rows.map(b=>({
+battles:battles.rows
 
-...b,
-
-hostName:
-nicknameMap[b.host] || b.host
-
-}));
-
-res.render("calendar",{battles});
+});
 
 });
 
 /*
 START SERVER
 */
-const PORT =
-process.env.PORT || 8080;
+const PORT=
+process.env.PORT||8080;
 
 app.listen(PORT,()=>{
 
 console.log(
-"🔥 Ember Empire dashboard running on port "+PORT
+"🔥 Ember Empire dashboard running on "+PORT
 );
 
 });
