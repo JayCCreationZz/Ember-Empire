@@ -28,45 +28,47 @@ UPLOAD CONFIG
 const upload = multer({ dest: "tmp/" });
 
 async function processPoster(file) {
-  if (!file) return null;
 
-  const buffer = await sharp(file.path)
-    .resize(1080, 1080, { fit: "cover" })
-    .jpeg({ quality: 92 })
-    .toBuffer();
+if (!file) return null;
 
-  fs.unlinkSync(file.path);
+const buffer = await sharp(file.path)
+.resize(1080,1080,{ fit:"cover" })
+.jpeg({ quality:92 })
+.toBuffer();
 
-  return buffer;
+fs.unlinkSync(file.path);
+
+return buffer;
+
 }
 
 /*
 APP CONFIG
 */
 
-app.set("view engine", "ejs");
-app.set("views", process.cwd() + "/dashboard/views");
+app.set("view engine","ejs");
+app.set("views",process.cwd()+"/dashboard/views");
 
-app.use(express.static(process.cwd() + "/dashboard/public"));
+app.use(express.static(process.cwd()+"/dashboard/public"));
 
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended:true }));
 
-app.set("trust proxy", 1);
+app.set("trust proxy",1);
 
 /*
-SESSION
+SESSION CONFIG
 */
 
 app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "ember-empire-secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "none"
-    }
-  })
+session({
+secret:process.env.SESSION_SECRET || "ember-empire-secret",
+resave:false,
+saveUninitialized:false,
+cookie:{
+secure:process.env.NODE_ENV==="production",
+sameSite:"none"
+}
+})
 );
 
 app.use(passport.initialize());
@@ -77,71 +79,67 @@ DISCORD LOGIN
 */
 
 passport.use(
-  new DiscordStrategy(
-    {
-      clientID: process.env.CLIENT_ID,
-      clientSecret: process.env.CLIENT_SECRET,
-      callbackURL: process.env.CALLBACK_URL,
-      scope: ["identify", "guilds"]
-    },
-    (accessToken, refreshToken, profile, done) =>
-      done(null, profile)
-  )
+new DiscordStrategy(
+{
+clientID:process.env.CLIENT_ID,
+clientSecret:process.env.CLIENT_SECRET,
+callbackURL:process.env.CALLBACK_URL,
+scope:["identify","guilds"]
+},
+(accessToken,refreshToken,profile,done)=>
+done(null,profile)
+)
 );
 
-passport.serializeUser((user, done) =>
-  done(null, user)
-);
-
-passport.deserializeUser((obj, done) =>
-  done(null, obj)
-);
+passport.serializeUser((user,done)=>done(null,user));
+passport.deserializeUser((obj,done)=>done(null,obj));
 
 /*
 ROLE LOOKUP
 */
 
-async function getUserRoleLevel(req) {
-  try {
+async function getUserRoleLevel(req){
 
-    const response = await axios.get(
-      `https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members/${req.user.id}`,
-      {
-        headers: {
-          Authorization: `Bot ${process.env.TOKEN}`
-        }
-      }
-    );
+try{
 
-    const roles = response.data.roles || [];
+const response=await axios.get(
+`https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members/${req.user.id}`,
+{
+headers:{
+Authorization:`Bot ${process.env.TOKEN}`
+}
+}
+);
 
-    if (roles.includes(OWNER_ROLE)) return "owner";
+const roles=response.data.roles||[];
 
-    if (roles.includes(ADMIN_ROLE)) return "admin";
+if(roles.includes(OWNER_ROLE)) return "owner";
+if(roles.includes(ADMIN_ROLE)) return "admin";
 
-    return "member";
+return "member";
 
-  } catch (err) {
+}
+catch(err){
 
-    console.log("Role lookup error:", err.message);
+console.log("Role lookup error:",err.message);
+return "member";
 
-    return "member";
+}
 
-  }
 }
 
 /*
 AUTH CHECK
 */
 
-async function checkAuth(req, res, next) {
+async function checkAuth(req,res,next){
 
-  if (!req.isAuthenticated())
-    return res.redirect("/");
+if(!req.isAuthenticated())
+return res.redirect("/");
 
-  req.roleLevel = await getUserRoleLevel(req);
+req.roleLevel=await getUserRoleLevel(req);
 
-  next();
+next();
 
 }
 
@@ -149,27 +147,27 @@ async function checkAuth(req, res, next) {
 FETCH DISCORD MEMBERS
 */
 
-async function getAgencyMembers() {
+async function getAgencyMembers(){
 
-  const response = await axios.get(
-    `https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members?limit=1000`,
-    {
-      headers: {
-        Authorization: `Bot ${process.env.TOKEN}`
-      }
-    }
-  );
+const response=await axios.get(
+`https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members?limit=1000`,
+{
+headers:{
+Authorization:`Bot ${process.env.TOKEN}`
+}
+}
+);
 
-  return response.data.map(member => ({
+return response.data.map(member=>({
 
-    id: member.user.id,
+id:member.user.id,
 
-    name:
-      member.nick ||
-      member.user.global_name ||
-      member.user.username
+name:
+member.nick ||
+member.user.global_name ||
+member.user.username
 
-  }));
+}));
 
 }
 
@@ -177,19 +175,19 @@ async function getAgencyMembers() {
 POSTER ROUTE
 */
 
-app.get("/poster/:id", async (req, res) => {
+app.get("/poster/:id",async(req,res)=>{
 
-  const result = await db.query(
-    "SELECT posterdata FROM battles WHERE id=$1",
-    [req.params.id]
-  );
+const result=await db.query(
+"SELECT posterdata FROM battles WHERE id=$1",
+[req.params.id]
+);
 
-  if (!result.rows.length)
-    return res.sendStatus(404);
+if(!result.rows.length)
+return res.sendStatus(404);
 
-  res.set("Content-Type", "image/jpeg");
+res.set("Content-Type","image/jpeg");
 
-  res.send(result.rows[0].posterdata);
+res.send(result.rows[0].posterdata);
 
 });
 
@@ -197,73 +195,62 @@ app.get("/poster/:id", async (req, res) => {
 LOGIN ROUTES
 */
 
-app.get("/", (req, res) =>
-  res.render("login")
-);
+app.get("/",(req,res)=>res.render("login"));
 
 app.get("/login",
-  passport.authenticate("discord")
+passport.authenticate("discord")
 );
 
 app.get(
-  "/auth/callback",
-
-  passport.authenticate("discord", {
-    failureRedirect: "/"
-  }),
-
-  (req, res) =>
-    res.redirect("/dashboard")
+"/auth/callback",
+passport.authenticate("discord",{ failureRedirect:"/" }),
+(req,res)=>res.redirect("/dashboard")
 );
 
 app.get("/logout",
-  (req, res) =>
-    req.logout(() =>
-      res.redirect("/")
-    )
+(req,res)=>req.logout(()=>res.redirect("/"))
 );
 
 /*
-DASHBOARD
+DASHBOARD ROUTE
 */
 
 app.get("/dashboard",
-  checkAuth,
-  async (req, res) => {
+checkAuth,
+async(req,res)=>{
 
-    const battlesRaw =
-      await db.query(
-        "SELECT * FROM battles ORDER BY date,time"
-      );
+const battlesRaw=
+await db.query(
+"SELECT * FROM battles ORDER BY date,time"
+);
 
-    const members =
-      await getAgencyMembers();
+const members=
+await getAgencyMembers();
 
-    const memberMap = {};
+const memberMap={};
 
-    members.forEach(m =>
-      memberMap[m.id] = m.name
-    );
+members.forEach(m=>{
+memberMap[m.id]=m.name;
+});
 
-    const battles =
-      battlesRaw.rows.map(b => {
+const battles=battlesRaw.rows.map(b=>{
 
-        b.hostName =
-          memberMap[b.host] ||
-          b.hostname ||
-          b.host;
+b.hostName=
+memberMap[b.host] ||
+b.hostname ||
+b.host;
 
-        return b;
+return b;
 
-      });
+});
 
-    res.render("dashboard", {
+res.render("dashboard",{
 
-      battles,
-      agencyMembers: members,
-      roleLevel: req.roleLevel
+battles,
+agencyMembers:members,
+roleLevel:req.roleLevel
 
-    });
+});
 
 });
 
@@ -271,133 +258,205 @@ app.get("/dashboard",
 CREATE BATTLE
 */
 
-app.post(
-  "/create",
-  checkAuth,
-  upload.single("poster"),
-  async (req, res) => {
+app.post("/create",
+checkAuth,
+upload.single("poster"),
+async(req,res)=>{
 
-    if (!["owner","admin"]
-      .includes(req.roleLevel))
-      return res.send("Permission denied");
+if(!["owner","admin"].includes(req.roleLevel))
+return res.send("Permission denied");
 
-    const posterBuffer =
-      await processPoster(req.file);
+const posterBuffer=
+await processPoster(req.file);
 
-    const inserted =
-      await db.query(
+const inserted=
+await db.query(
+`INSERT INTO battles
+(host,hostname,opponent,date,time,
+posterdata,livelink,
+managergifting,adultonly,
+powerups,nohammers)
+VALUES
+($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+RETURNING *`,
+[
+req.body.host,
+req.body.hostName || null,
+req.body.opponent,
+req.body.date,
+req.body.time,
+posterBuffer,
+req.body.liveLink,
+req.body.managerGifting==="true",
+req.body.adultOnly==="true",
+req.body.powerUps==="true",
+req.body.noHammers==="true"
+]
+);
 
-        `INSERT INTO battles
-        (host, hostname, opponent,
-         date, time, posterdata,
-         livelink, managergifting,
-         adultonly, powerups,
-         nohammers)
-        VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-        RETURNING *`,
+await postBattleNow(inserted.rows[0]);
 
-        [
-
-          req.body.host,
-
-          req.body.hostName || null,
-
-          req.body.opponent,
-
-          req.body.date,
-
-          req.body.time,
-
-          posterBuffer,
-
-          req.body.liveLink,
-
-          req.body.managerGifting === "true",
-
-          req.body.adultOnly === "true",
-
-          req.body.powerUps === "true",
-
-          req.body.noHammers === "true"
-
-        ]
-
-      );
-
-    await postBattleNow(
-      inserted.rows[0]
-    );
-
-    res.redirect("/dashboard");
+res.redirect("/dashboard");
 
 });
 
 /*
-DELETE
+REPLACE POSTER
 */
 
-app.post(
-  "/delete/:id",
-  checkAuth,
-  async (req, res) => {
+app.post("/replace-poster/:id",
+checkAuth,
+upload.single("poster"),
+async(req,res)=>{
 
-    if (!["owner","admin"]
-      .includes(req.roleLevel))
-      return res.redirect("/dashboard");
+if(!["owner","admin"].includes(req.roleLevel))
+return res.redirect("/dashboard");
 
-    await db.query(
-      "DELETE FROM battles WHERE id=$1",
-      [req.params.id]
-    );
+const buffer=
+await processPoster(req.file);
 
-    res.redirect("/dashboard");
+await db.query(
+"UPDATE battles SET posterdata=$1 WHERE id=$2",
+[buffer,req.params.id]
+);
+
+res.redirect("/dashboard");
 
 });
 
 /*
-CALENDAR
+DELETE BATTLE
+*/
+
+app.post("/delete/:id",
+checkAuth,
+async(req,res)=>{
+
+if(!["owner","admin"].includes(req.roleLevel))
+return res.redirect("/dashboard");
+
+await db.query(
+"DELETE FROM battles WHERE id=$1",
+[req.params.id]
+);
+
+res.redirect("/dashboard");
+
+});
+
+/*
+CALENDAR ROUTE WITH GROUPING + LIVE DETECTION
 */
 
 app.get("/calendar",
-  checkAuth,
-  async (req, res) => {
+checkAuth,
+async(req,res)=>{
 
-    const battlesRaw =
-      await db.query(
-        "SELECT * FROM battles ORDER BY date,time"
-      );
+try{
 
-    const members =
-      await getAgencyMembers();
+const battlesRaw=
+await db.query(
+"SELECT * FROM battles ORDER BY date,time"
+);
 
-    const memberMap = {};
+const members=
+await getAgencyMembers();
 
-    members.forEach(m =>
-      memberMap[m.id] = m.name
-    );
+const memberMap={};
 
-    const battles =
-      battlesRaw.rows.map(b => {
+members.forEach(m=>{
+memberMap[m.id]=m.name;
+});
 
-        b.hostName =
-          memberMap[b.host] ||
-          b.hostname ||
-          b.host;
+function parseDate(str){
 
-        return b;
+const [d,m,y]=str.split("/");
+return new Date(`${y}-${m}-${d}`);
 
-      });
+}
 
-    res.render("calendar", {
+function minutes(str){
 
-      battles,
+const [h,m]=str.split(":");
+return h*60 + Number(m);
 
-      roleLevel: req.roleLevel,
+}
 
-      userId: req.user.id
+const now=new Date();
 
-    });
+const todayStart=
+new Date(now.getFullYear(),now.getMonth(),now.getDate());
+
+const tomorrowStart=
+new Date(todayStart);
+
+tomorrowStart.setDate(todayStart.getDate()+1);
+
+const weekEnd=
+new Date(todayStart);
+
+weekEnd.setDate(todayStart.getDate()+7);
+
+const grouped={
+today:[],
+tomorrow:[],
+week:[],
+later:[]
+};
+
+battlesRaw.rows.forEach(b=>{
+
+b.hostName=
+memberMap[b.host] ||
+b.hostname ||
+b.host;
+
+const battleDate=parseDate(b.date);
+
+const diffMinutes=
+minutes(b.time) -
+(now.getHours()*60 + now.getMinutes());
+
+if(battleDate.toDateString()===now.toDateString()){
+
+if(diffMinutes<=0 && diffMinutes>=-120)
+b.status="live";
+
+else if(diffMinutes>0 && diffMinutes<=30)
+b.status="soon";
+
+}
+
+if(battleDate.toDateString()===todayStart.toDateString())
+grouped.today.push(b);
+
+else if(battleDate.toDateString()===tomorrowStart.toDateString())
+grouped.tomorrow.push(b);
+
+else if(battleDate>todayStart && battleDate<=weekEnd)
+grouped.week.push(b);
+
+else
+grouped.later.push(b);
+
+});
+
+res.render("calendar",{
+
+grouped,
+roleLevel:req.roleLevel,
+userId:req.user.id
+
+});
+
+}
+catch(err){
+
+console.log("Calendar error:",err.message);
+
+res.send("Calendar failed to load");
+
+}
 
 });
 
@@ -406,7 +465,6 @@ START SERVER
 */
 
 app.listen(
-  process.env.PORT || 8080,
-  () =>
-    console.log("🔥 Ember Empire Dashboard running")
+process.env.PORT || 8080,
+()=>console.log("🔥 Ember Empire Dashboard running")
 );
