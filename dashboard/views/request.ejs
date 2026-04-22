@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<title>Battle Request</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+</head>
+
+<body class="bg-slate-900 text-white">
+
+<div class="max-w-xl mx-auto mt-20">
+
+<h1 class="text-3xl mb-6 font-bold">
+Request a Battle ⚔️
+</h1>
+
+<form action="/request"
+method="POST"
+class="space-y-4">
+
+<input
+name="requester"
+placeholder="Your name"
+required
+class="w-full p-2 text-black rounded">
+
+<input
+name="agency"
+placeholder="Agency name"
+required
+class="w-full p-2 text-black rounded">
+
+<input
+name="opponent"
+placeholder="Creator you'd like to battle"
+required
+class="w-full p-2 text-black rounded">
+
+<input
+name="date"
+placeholder="Preferred date (DD/MM/YYYY)"
+class="w-full p-2 text-black rounded">
+
+<input
+name="time"
+placeholder="Preferred time (HH:MM)"
+class="w-full p-2 text-black rounded">
+
+<textarea
+name="notes"
+placeholder="Extra notes"
+class="w-full p-2 text-black rounded"></textarea>
+
+<button
+class="bg-orange-500 px-6 py-2 rounded">
+
+Submit Request 🚀
+
+</button>
+
+</form>
+
+</div>
+
+</body>
+</html>
