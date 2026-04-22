@@ -11,6 +11,8 @@
 
 <style>
 
+/* BACKGROUND */
+
 body{
 background:linear-gradient(135deg,#020617,#0f172a);
 }
@@ -26,7 +28,7 @@ transition:.25s ease;
 }
 
 .card:hover{
-transform:translateY(-5px);
+transform:translateY(-4px);
 box-shadow:
 0 0 25px rgba(255,120,0,.45),
 0 0 45px rgba(255,60,0,.25);
@@ -40,7 +42,7 @@ max-height:170px;
 object-fit:cover;
 }
 
-/* LOGO ANIMATION */
+/* LOGO GLOW */
 
 .logo{
 animation:pulseGlow 2.5s infinite ease-in-out;
@@ -129,17 +131,21 @@ enctype="multipart/form-data"
 class="grid md:grid-cols-2 gap-4"
 >
 
-<!-- CREATOR SELECT -->
+<!-- HIDDEN HOSTNAME FIELD -->
+<input type="hidden" name="hostName" id="hostNameField">
+
+<!-- CREATOR -->
 
 <select
 name="host"
+id="hostSelect"
 required
 class="bg-gray-800 p-3 rounded-lg"
 >
 
 <% creators.forEach(member=>{ %>
 
-<option value="<%= member.id %>">
+<option value="<%= member.id %>" data-name="<%= member.name %>">
 <%= member.name %>
 </option>
 
@@ -243,7 +249,7 @@ class="poster mb-4"
 
 <h3 class="text-lg font-semibold text-orange-400">
 
-🔥 <%= battle.hostName %> vs <%= battle.opponent %>
+🔥 <%= battle.hostName || battle.host %> vs <%= battle.opponent %>
 
 </h3>
 
@@ -306,6 +312,23 @@ Delete Battle
 <% } %>
 
 </div>
+
+<!-- HOSTNAME AUTO-FILL SCRIPT -->
+<script>
+document.getElementById("hostSelect").addEventListener("change", e => {
+  const selected = e.target.selectedOptions[0];
+  document.getElementById("hostNameField").value = selected.dataset.name;
+});
+
+// Auto-fill on page load
+window.addEventListener("DOMContentLoaded", () => {
+  const select = document.getElementById("hostSelect");
+  const selected = select.selectedOptions[0];
+  if (selected) {
+    document.getElementById("hostNameField").value = selected.dataset.name;
+  }
+});
+</script>
 
 </body>
 </html>
