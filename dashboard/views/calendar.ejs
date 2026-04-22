@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
+
 <title>Battle Calendar</title>
+
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
 
 .section-title{
 font-size:26px;
-margin-top:30px;
+margin-top:40px;
 margin-bottom:10px;
 font-weight:bold;
 }
@@ -20,16 +22,18 @@ object-fit:cover;
 }
 
 .badge{
-padding:3px 8px;
+padding:4px 10px;
 border-radius:6px;
 font-size:12px;
 margin-left:6px;
 }
 
 .live{ background:red; }
+
 .soon{ background:orange; }
 
 </style>
+
 </head>
 
 <body class="bg-slate-900 text-white">
@@ -39,20 +43,47 @@ margin-left:6px;
 
 <!-- NAV -->
 
-<div class="flex justify-between mb-8">
+<div class="flex justify-between items-center mb-10">
 
-<h1 class="text-3xl font-bold">Battle Calendar 📅</h1>
+<h1 class="text-3xl font-bold">
+Battle Calendar 📅
+</h1>
 
 <div class="flex gap-3">
-<a href="/dashboard" class="bg-slate-700 px-5 py-2 rounded-xl">Dashboard</a>
-<a href="/calendar" class="bg-orange-500 px-5 py-2 rounded-xl">Calendar</a>
-<a href="/logout" class="bg-red-600 px-5 py-2 rounded-xl">Logout</a>
-</div>
+
+<a href="/dashboard"
+class="bg-slate-700 px-5 py-2 rounded-xl">
+
+Dashboard 🔥
+
+</a>
+
+<a href="/calendar"
+class="bg-orange-500 px-5 py-2 rounded-xl">
+
+Calendar
+
+</a>
+
+<a href="/logout"
+class="bg-red-600 px-5 py-2 rounded-xl">
+
+Logout
+
+</a>
 
 </div>
 
+</div>
 
-<% battles.forEach(b=>{ %>
+
+<!-- TODAY -->
+
+<% if(grouped.today.length){ %>
+
+<div class="section-title">🔥 Today</div>
+
+<% grouped.today.forEach(b=>{ %>
 
 <div class="bg-slate-800 p-4 rounded mb-6">
 
@@ -61,7 +92,7 @@ class="poster mb-3">
 
 <h3>
 
-🔥 <%= b.hostName || b.host %> vs <%= b.opponent %>
+🔥 <%= b.hostName %> vs <%= b.opponent %>
 
 <% if(b.status==="live"){ %>
 <span class="badge live">LIVE 🔴</span>
@@ -76,16 +107,93 @@ class="poster mb-3">
 <p>📅 <%= b.date %></p>
 <p>⏰ <%= b.time %></p>
 
-<% if(b.livelink){ %>
-<a href="<%= b.livelink %>" target="_blank"
-class="text-orange-400 underline">
-Watch Battle
-</a>
+</div>
+
+<% }) %>
+
 <% } %>
+
+
+<!-- TOMORROW -->
+
+<% if(grouped.tomorrow.length){ %>
+
+<div class="section-title">🌅 Tomorrow</div>
+
+<% grouped.tomorrow.forEach(b=>{ %>
+
+<div class="bg-slate-800 p-4 rounded mb-6">
+
+<img src="/poster/<%= b.id %>?t=<%= Date.now() %>"
+class="poster mb-3">
+
+<h3>
+<%= b.hostName %> vs <%= b.opponent %>
+</h3>
+
+<p>📅 <%= b.date %></p>
+<p>⏰ <%= b.time %></p>
 
 </div>
 
 <% }) %>
+
+<% } %>
+
+
+<!-- THIS WEEK -->
+
+<% if(grouped.week.length){ %>
+
+<div class="section-title">📆 This Week</div>
+
+<% grouped.week.forEach(b=>{ %>
+
+<div class="bg-slate-800 p-4 rounded mb-6">
+
+<img src="/poster/<%= b.id %>?t=<%= Date.now() %>"
+class="poster mb-3">
+
+<h3>
+<%= b.hostName %> vs <%= b.opponent %>
+</h3>
+
+<p>📅 <%= b.date %></p>
+<p>⏰ <%= b.time %></p>
+
+</div>
+
+<% }) %>
+
+<% } %>
+
+
+<!-- LATER -->
+
+<% if(grouped.later.length){ %>
+
+<div class="section-title">📅 Later</div>
+
+<% grouped.later.forEach(b=>{ %>
+
+<div class="bg-slate-800 p-4 rounded mb-6">
+
+<img src="/poster/<%= b.id %>?t=<%= Date.now() %>"
+class="poster mb-3">
+
+<h3>
+<%= b.hostName %> vs <%= b.opponent %>
+</h3>
+
+<p>📅 <%= b.date %></p>
+<p>⏰ <%= b.time %></p>
+
+</div>
+
+<% }) %>
+
+<% } %>
+
 
 </div>
 
