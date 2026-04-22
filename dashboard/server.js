@@ -111,7 +111,7 @@ async function checkAuth(req, res, next) {
 }
 
 /*
-GET DISCORD NICKNAMES
+GET DISCORD MEMBERS
 */
 
 async function getAgencyMembers() {
@@ -183,14 +183,13 @@ app.get("/dashboard", checkAuth, async (req, res) => {
 
   res.render("dashboard", {
     battles,
-    creators: members,
     agencyMembers: members,
     roleLevel: req.roleLevel
   });
 });
 
 /*
-CREATE (UPDATED WITH HOSTNAME)
+CREATE (FIXED + HOSTNAME SUPPORT)
 */
 
 app.post("/create", checkAuth, upload.single("poster"), async (req, res) => {
@@ -208,7 +207,7 @@ app.post("/create", checkAuth, upload.single("poster"), async (req, res) => {
      RETURNING *`,
     [
       req.body.host,
-      req.body.hostName, // NEW
+      req.body.hostName, // FIXED
       req.body.opponent,
       req.body.date,
       req.body.time,
