@@ -77,7 +77,7 @@ battles.forEach(battle => {
     <div class="bg-slate-800 rounded-xl p-5 shadow-lg">
       <img src="/poster/<%= battle.id %>?t=<%= Date.now() %>" class="rounded-xl mb-4">
       <h2 class="text-xl font-semibold text-orange-400">
-        🔥 <%= battle.host %> vs <%= battle.opponent %>
+        🔥 <%= battle.hostName || battle.host %> vs <%= battle.opponent %>
       </h2>
       <p>📅 <%= battle.date %></p>
       <p>⏰ <%= battle.time %></p>
@@ -105,7 +105,7 @@ battles.forEach(battle => {
     <div class="bg-slate-800 rounded-xl p-5 shadow-lg">
       <img src="/poster/<%= battle.id %>?t=<%= Date.now() %>" class="rounded-xl mb-4">
       <h2 class="text-xl font-semibold text-orange-400">
-        🔥 <%= battle.host %> vs <%= battle.opponent %>
+        🔥 <%= battle.hostName || battle.host %> vs <%= battle.opponent %>
       </h2>
       <p>📅 <%= battle.date %></p>
       <p>⏰ <%= battle.time %></p>
@@ -133,7 +133,7 @@ battles.forEach(battle => {
     <div class="bg-slate-800 rounded-xl p-5 shadow-lg">
       <img src="/poster/<%= battle.id %>?t=<%= Date.now() %>" class="rounded-xl mb-4">
       <h2 class="text-xl font-semibold text-orange-400">
-        🔥 <%= battle.host %> vs <%= battle.opponent %>
+        🔥 <%= battle.hostName || battle.host %> vs <%= battle.opponent %>
       </h2>
       <p>📅 <%= battle.date %></p>
       <p>⏰ <%= battle.time %></p>
