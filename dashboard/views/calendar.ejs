@@ -10,6 +10,7 @@
 
 <div class="max-w-6xl mx-auto px-6 py-10">
 
+<!-- HEADER -->
 <div class="flex items-center gap-4 mb-10">
 
 <img src="/logo.png"
@@ -18,6 +19,14 @@ class="w-14 h-14 drop-shadow-[0_0_12px_rgba(255,90,0,0.7)]">
 <h1 class="text-4xl font-bold">
 Ember Empire Battle Schedule
 </h1>
+
+<% if (roleLevel === "owner" || roleLevel === "admin") { %>
+<a
+href="/dashboard"
+class="ml-auto bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-xl shadow">
+Switch to Dashboard 🛠
+</a>
+<% } %>
 
 </div>
 

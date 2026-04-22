@@ -93,20 +93,18 @@ Ember Empire Dashboard
 
 <div class="flex gap-3">
 
+<% if (roleLevel === "owner" || roleLevel === "admin") { %>
 <a
 href="/calendar"
 class="bg-orange-500 hover:bg-orange-600 px-5 py-2 rounded-xl shadow">
-
-Calendar 📅
-
+Switch to Calendar 📅
 </a>
+<% } %>
 
 <a
 href="/logout"
 class="bg-red-600 hover:bg-red-700 px-5 py-2 rounded-xl shadow">
-
 Logout
-
 </a>
 
 </div>
