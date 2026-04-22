@@ -14,11 +14,15 @@ const { postBattleNow } = require("../index");
 
 const app = express();
 
+/*
+ROLE IDS
+*/
+
 const OWNER_ROLE = "1439255505053683804";
 const ADMIN_ROLE = "1439256200658157588";
 
 /*
-UPLOAD
+UPLOAD CONFIG
 */
 
 const upload = multer({ dest: "tmp/" });
@@ -37,19 +41,25 @@ async function processPoster(file) {
 }
 
 /*
-CONFIG
+APP CONFIG
 */
 
 app.set("view engine", "ejs");
 app.set("views", process.cwd() + "/dashboard/views");
+
 app.use(express.static(process.cwd() + "/dashboard/public"));
+
 app.use(express.urlencoded({ extended: true }));
 
 app.set("trust proxy", 1);
 
+/*
+SESSION
+*/
+
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "flame-force",
+    secret: process.env.SESSION_SECRET || "ember-empire-secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -72,204 +82,331 @@ passport.use(
       clientID: process.env.CLIENT_ID,
       clientSecret: process.env.CLIENT_SECRET,
       callbackURL: process.env.CALLBACK_URL,
-      scope: ["identify"]
+      scope: ["identify", "guilds"]
     },
-    (a, b, profile, done) => done(null, profile)
+    (accessToken, refreshToken, profile, done) =>
+      done(null, profile)
   )
 );
 
-passport.serializeUser((u, d) => d(null, u));
-passport.deserializeUser((o, d) => d(null, o));
+passport.serializeUser((user, done) =>
+  done(null, user)
+);
+
+passport.deserializeUser((obj, done) =>
+  done(null, obj)
+);
 
 /*
-ROLE CHECK
+ROLE LOOKUP
 */
 
 async function getUserRoleLevel(req) {
   try {
+
     const response = await axios.get(
       `https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members/${req.user.id}`,
-      { headers: { Authorization: `Bot ${process.env.TOKEN}` } }
+      {
+        headers: {
+          Authorization: `Bot ${process.env.TOKEN}`
+        }
+      }
     );
 
     const roles = response.data.roles || [];
 
     if (roles.includes(OWNER_ROLE)) return "owner";
+
     if (roles.includes(ADMIN_ROLE)) return "admin";
 
     return "member";
+
   } catch (err) {
+
     console.log("Role lookup error:", err.message);
+
     return "member";
+
   }
 }
 
+/*
+AUTH CHECK
+*/
+
 async function checkAuth(req, res, next) {
-  if (!req.isAuthenticated()) return res.redirect("/");
+
+  if (!req.isAuthenticated())
+    return res.redirect("/");
+
   req.roleLevel = await getUserRoleLevel(req);
+
   next();
+
 }
 
 /*
-GET DISCORD MEMBERS
+FETCH DISCORD MEMBERS
 */
 
 async function getAgencyMembers() {
+
   const response = await axios.get(
     `https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members?limit=1000`,
-    { headers: { Authorization: `Bot ${process.env.TOKEN}` } }
+    {
+      headers: {
+        Authorization: `Bot ${process.env.TOKEN}`
+      }
+    }
   );
 
   return response.data.map(member => ({
+
     id: member.user.id,
+
     name:
       member.nick ||
       member.user.global_name ||
       member.user.username
+
   }));
+
 }
 
 /*
-POSTER
+POSTER ROUTE
 */
 
 app.get("/poster/:id", async (req, res) => {
+
   const result = await db.query(
     "SELECT posterdata FROM battles WHERE id=$1",
     [req.params.id]
   );
 
-  if (!result.rows.length) return res.sendStatus(404);
+  if (!result.rows.length)
+    return res.sendStatus(404);
 
   res.set("Content-Type", "image/jpeg");
+
   res.send(result.rows[0].posterdata);
+
 });
 
 /*
-LOGIN
+LOGIN ROUTES
 */
 
-app.get("/", (req, res) => res.render("login"));
-app.get("/login", passport.authenticate("discord"));
+app.get("/", (req, res) =>
+  res.render("login")
+);
+
+app.get("/login",
+  passport.authenticate("discord")
+);
 
 app.get(
   "/auth/callback",
-  passport.authenticate("discord", { failureRedirect: "/" }),
-  (req, res) => res.redirect("/dashboard")
+
+  passport.authenticate("discord", {
+    failureRedirect: "/"
+  }),
+
+  (req, res) =>
+    res.redirect("/dashboard")
 );
 
-app.get("/logout", (req, res) =>
-  req.logout(() => res.redirect("/"))
+app.get("/logout",
+  (req, res) =>
+    req.logout(() =>
+      res.redirect("/")
+    )
 );
 
 /*
 DASHBOARD
 */
 
-app.get("/dashboard", checkAuth, async (req, res) => {
-  const battlesRaw = await db.query(
-    "SELECT * FROM battles ORDER BY date,time"
-  );
+app.get("/dashboard",
+  checkAuth,
+  async (req, res) => {
 
-  const members = await getAgencyMembers();
+    const battlesRaw =
+      await db.query(
+        "SELECT * FROM battles ORDER BY date,time"
+      );
 
-  const map = {};
-  members.forEach(m => (map[m.id] = m.name));
+    const members =
+      await getAgencyMembers();
 
-  const battles = battlesRaw.rows.map(b => {
-    b.hostName = map[b.host] || b.host;
-    return b;
-  });
+    const memberMap = {};
 
-  res.render("dashboard", {
-    battles,
-    agencyMembers: members,
-    roleLevel: req.roleLevel
-  });
+    members.forEach(m =>
+      memberMap[m.id] = m.name
+    );
+
+    const battles =
+      battlesRaw.rows.map(b => {
+
+        b.hostName =
+          memberMap[b.host] ||
+          b.hostname ||
+          b.host;
+
+        return b;
+
+      });
+
+    res.render("dashboard", {
+
+      battles,
+      agencyMembers: members,
+      roleLevel: req.roleLevel
+
+    });
+
 });
 
 /*
-CREATE (FIXED + HOSTNAME SUPPORT)
+CREATE BATTLE
 */
 
-app.post("/create", checkAuth, upload.single("poster"), async (req, res) => {
-  if (!["owner", "admin"].includes(req.roleLevel))
-    return res.send("Permission denied");
+app.post(
+  "/create",
+  checkAuth,
+  upload.single("poster"),
+  async (req, res) => {
 
-  const posterBuffer = await processPoster(req.file);
+    if (!["owner","admin"]
+      .includes(req.roleLevel))
+      return res.send("Permission denied");
 
-  const inserted = await db.query(
-    `INSERT INTO battles
-    (host, hostName, opponent, date, time, posterdata,
-     livelink, managergifting, adultonly,
-     powerups, nohammers)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-     RETURNING *`,
-    [
-      req.body.host,
-      req.body.hostName, // FIXED
-      req.body.opponent,
-      req.body.date,
-      req.body.time,
-      posterBuffer,
-      req.body.liveLink,
-      req.body.managerGifting === "true",
-      req.body.adultOnly === "true",
-      req.body.powerUps === "true",
-      req.body.noHammers === "true"
-    ]
-  );
+    const posterBuffer =
+      await processPoster(req.file);
 
-  await postBattleNow(inserted.rows[0]);
+    const inserted =
+      await db.query(
 
-  res.redirect("/dashboard");
+        `INSERT INTO battles
+        (host, hostname, opponent,
+         date, time, posterdata,
+         livelink, managergifting,
+         adultonly, powerups,
+         nohammers)
+        VALUES
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        RETURNING *`,
+
+        [
+
+          req.body.host,
+
+          req.body.hostName || null,
+
+          req.body.opponent,
+
+          req.body.date,
+
+          req.body.time,
+
+          posterBuffer,
+
+          req.body.liveLink,
+
+          req.body.managerGifting === "true",
+
+          req.body.adultOnly === "true",
+
+          req.body.powerUps === "true",
+
+          req.body.noHammers === "true"
+
+        ]
+
+      );
+
+    await postBattleNow(
+      inserted.rows[0]
+    );
+
+    res.redirect("/dashboard");
+
 });
 
 /*
 DELETE
 */
 
-app.post("/delete/:id", checkAuth, async (req, res) => {
-  if (!["owner", "admin"].includes(req.roleLevel))
-    return res.redirect("/dashboard");
+app.post(
+  "/delete/:id",
+  checkAuth,
+  async (req, res) => {
 
-  await db.query("DELETE FROM battles WHERE id=$1", [
-    req.params.id
-  ]);
+    if (!["owner","admin"]
+      .includes(req.roleLevel))
+      return res.redirect("/dashboard");
 
-  res.redirect("/dashboard");
+    await db.query(
+      "DELETE FROM battles WHERE id=$1",
+      [req.params.id]
+    );
+
+    res.redirect("/dashboard");
+
 });
 
 /*
 CALENDAR
 */
 
-app.get("/calendar", checkAuth, async (req, res) => {
-  const battlesRaw = await db.query(
-    "SELECT * FROM battles ORDER BY date,time"
-  );
+app.get("/calendar",
+  checkAuth,
+  async (req, res) => {
 
-  const members = await getAgencyMembers();
+    const battlesRaw =
+      await db.query(
+        "SELECT * FROM battles ORDER BY date,time"
+      );
 
-  const map = {};
-  members.forEach(m => (map[m.id] = m.name));
+    const members =
+      await getAgencyMembers();
 
-  const battles = battlesRaw.rows.map(b => {
-    b.hostName = map[b.host] || b.host;
-    return b;
-  });
+    const memberMap = {};
 
-  res.render("calendar", {
-    battles,
-    roleLevel: req.roleLevel,
-    userId: req.user.id
-  });
+    members.forEach(m =>
+      memberMap[m.id] = m.name
+    );
+
+    const battles =
+      battlesRaw.rows.map(b => {
+
+        b.hostName =
+          memberMap[b.host] ||
+          b.hostname ||
+          b.host;
+
+        return b;
+
+      });
+
+    res.render("calendar", {
+
+      battles,
+
+      roleLevel: req.roleLevel,
+
+      userId: req.user.id
+
+    });
+
 });
 
 /*
-START
+START SERVER
 */
 
-app.listen(process.env.PORT || 8080, () => {
-  console.log("🔥 Dashboard running");
-});
+app.listen(
+  process.env.PORT || 8080,
+  () =>
+    console.log("🔥 Ember Empire Dashboard running")
+);
