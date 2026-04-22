@@ -21,42 +21,133 @@ Ember Empire Battle Schedule
 
 </div>
 
-<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+<%
+/* -----------------------------
+   DATE HELPERS
+------------------------------ */
 
-<% battles.forEach(battle=>{ %>
+// Convert DD/MM/YYYY → JS Date
+function parseDate(d) {
+  const [day, month, year] = d.split("/");
+  return new Date(`${year}-${month}-${day}`);
+}
 
-<div class="bg-slate-800 rounded-xl p-5 shadow-lg">
+// Today
+const now = new Date();
+const todayStr = now.toLocaleDateString("en-GB");
 
-<img
-src="/poster/<%= battle.id %>?t=<%= Date.now() %>"
-class="rounded-xl mb-4">
+// Tomorrow
+const tomorrow = new Date(now);
+tomorrow.setDate(now.getDate() + 1);
+const tomorrowStr = tomorrow.toLocaleDateString("en-GB");
 
-<h2 class="text-xl font-semibold text-orange-400">
+// 7 days ahead
+const weekAhead = new Date(now);
+weekAhead.setDate(now.getDate() + 7);
 
-🔥 <%= battle.host %> vs <%= battle.opponent %>
+/* -----------------------------
+   GROUP BATTLES
+------------------------------ */
 
-</h2>
+const todayBattles = [];
+const tomorrowBattles = [];
+const weekBattles = [];
 
-<p>📅 <%= battle.date %></p>
+battles.forEach(battle => {
+  const d = parseDate(battle.date);
 
-<p>⏰ <%= battle.time %></p>
+  if (battle.date === todayStr) {
+    todayBattles.push(battle);
+  } else if (battle.date === tomorrowStr) {
+    tomorrowBattles.push(battle);
+  } else if (d > now && d <= weekAhead) {
+    weekBattles.push(battle);
+  }
+});
+%>
 
-<% if(battle.liveLink){ %>
+<!-- TODAY -->
+<h2 class="text-2xl font-bold text-orange-400 mb-4">🔥 Battles Today</h2>
 
-<a href="<%= battle.liveLink %>"
-target="_blank"
-class="inline-block mt-2 px-4 py-2 rounded-lg bg-orange-500">
+<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-10">
+<% if (todayBattles.length === 0) { %>
+  <p class="text-gray-400">No battles today.</p>
+<% } else { %>
+  <% todayBattles.forEach(battle => { %>
+    <div class="bg-slate-800 rounded-xl p-5 shadow-lg">
+      <img src="/poster/<%= battle.id %>?t=<%= Date.now() %>" class="rounded-xl mb-4">
+      <h2 class="text-xl font-semibold text-orange-400">
+        🔥 <%= battle.host %> vs <%= battle.opponent %>
+      </h2>
+      <p>📅 <%= battle.date %></p>
+      <p>⏰ <%= battle.time %></p>
 
-Watch Battle 🔗
-
-</a>
-
+      <% if(battle.liveLink){ %>
+      <a href="<%= battle.liveLink %>"
+      target="_blank"
+      class="inline-block mt-2 px-4 py-2 rounded-lg bg-orange-500">
+      Watch Battle 🔗
+      </a>
+      <% } %>
+    </div>
+  <% }) %>
 <% } %>
-
 </div>
 
-<% }) %>
+<!-- TOMORROW -->
+<h2 class="text-2xl font-bold text-orange-400 mb-4">⚔ Battles Tomorrow</h2>
 
+<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-10">
+<% if (tomorrowBattles.length === 0) { %>
+  <p class="text-gray-400">No battles tomorrow.</p>
+<% } else { %>
+  <% tomorrowBattles.forEach(battle => { %>
+    <div class="bg-slate-800 rounded-xl p-5 shadow-lg">
+      <img src="/poster/<%= battle.id %>?t=<%= Date.now() %>" class="rounded-xl mb-4">
+      <h2 class="text-xl font-semibold text-orange-400">
+        🔥 <%= battle.host %> vs <%= battle.opponent %>
+      </h2>
+      <p>📅 <%= battle.date %></p>
+      <p>⏰ <%= battle.time %></p>
+
+      <% if(battle.liveLink){ %>
+      <a href="<%= battle.liveLink %>"
+      target="_blank"
+      class="inline-block mt-2 px-4 py-2 rounded-lg bg-orange-500">
+      Watch Battle 🔗
+      </a>
+      <% } %>
+    </div>
+  <% }) %>
+<% } %>
+</div>
+
+<!-- THIS WEEK -->
+<h2 class="text-2xl font-bold text-orange-400 mb-4">📅 Battles This Week</h2>
+
+<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-10">
+<% if (weekBattles.length === 0) { %>
+  <p class="text-gray-400">No battles this week.</p>
+<% } else { %>
+  <% weekBattles.forEach(battle => { %>
+    <div class="bg-slate-800 rounded-xl p-5 shadow-lg">
+      <img src="/poster/<%= battle.id %>?t=<%= Date.now() %>" class="rounded-xl mb-4">
+      <h2 class="text-xl font-semibold text-orange-400">
+        🔥 <%= battle.host %> vs <%= battle.opponent %>
+      </h2>
+      <p>📅 <%= battle.date %></p>
+      <p>⏰ <%= battle.time %></p>
+
+      <% if(battle.liveLink){ %>
+      <a href="<%= battle.liveLink %>"
+      target="_blank"
+      class="inline-block mt-2 px-4 py-2 rounded-lg bg-orange-500">
+      Watch Battle 🔗
+      </a>
+      <% } %>
+    </div>
+  <% }) %>
+<% } %>
 </div>
 
 </div>
