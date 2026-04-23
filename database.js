@@ -5,66 +5,65 @@ Railway PostgreSQL connection
 */
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+connectionString: process.env.DATABASE_URL,
+ssl: {
+rejectUnauthorized: false
+}
 });
 
 /*
-Create battles table + required columns
+INITIALIZE DATABASE TABLES
 */
 
 async function initDB() {
 
-  try {
+try {
 
-    /*
-    Create table if missing
-    */
+/*
+BATTLES TABLE
+*/
 
-    await pool.query(`
+await pool.query(`
+CREATE TABLE IF NOT EXISTS battles (
+id SERIAL PRIMARY KEY,
+host TEXT,
+hostname TEXT,
+opponent TEXT,
+date TEXT,
+time TEXT,
+posterdata BYTEA,
+livelink TEXT,
+managergifting BOOLEAN DEFAULT false,
+adultonly BOOLEAN DEFAULT false,
+powerups BOOLEAN DEFAULT false,
+nohammers BOOLEAN DEFAULT false
+)
+`);
 
-      CREATE TABLE IF NOT EXISTS battles (
+/*
+BATTLE REQUESTS TABLE
+*/
 
-        id SERIAL PRIMARY KEY,
+await pool.query(`
+CREATE TABLE IF NOT EXISTS battle_requests (
+id SERIAL PRIMARY KEY,
+requester TEXT,
+agency TEXT,
+opponent TEXT,
+preferred_date TEXT,
+preferred_time TEXT,
+notes TEXT,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+`);
 
-        host TEXT,
+console.log("✅ PostgreSQL connected & schema synced successfully");
 
-        opponent TEXT,
+} catch (err) {
 
-        date TEXT,
+console.error("❌ PostgreSQL init error:", err);
 
-        time TEXT,
-
-        posterData BYTEA,
-
-        liveLink TEXT,
-
-        posted BOOLEAN DEFAULT FALSE
-
-      )
-
-    `);
-
-    /*
-    Ensure posted column exists for older tables
-    */
-
-    await pool.query(`
-
-      ALTER TABLE battles
-      ADD COLUMN IF NOT EXISTS posted BOOLEAN DEFAULT FALSE
-
-    `);
-
-    console.log("✅ PostgreSQL connected & schema synced successfully");
-
-  } catch (err) {
-
-    console.error("❌ PostgreSQL init error:", err);
-
-  }
+}
 
 }
 
