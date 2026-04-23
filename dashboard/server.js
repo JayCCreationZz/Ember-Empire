@@ -59,13 +59,17 @@ SESSION CONFIG
 */
 
 app.use(session({
+
 secret:process.env.SESSION_SECRET || "ember-secret",
+
 resave:false,
 saveUninitialized:false,
+
 cookie:{
 secure:process.env.NODE_ENV==="production",
 sameSite:"none"
 }
+
 }));
 
 app.use(passport.initialize());
@@ -75,14 +79,22 @@ app.use(passport.session());
 DISCORD LOGIN
 */
 
-passport.use(new DiscordStrategy({
+passport.use(
+
+new DiscordStrategy({
 
 clientID:process.env.CLIENT_ID,
 clientSecret:process.env.CLIENT_SECRET,
 callbackURL:process.env.CALLBACK_URL,
 scope:["identify","guilds"]
 
-},(a,b,profile,done)=>done(null,profile)));
+},
+
+(a,b,profile,done)=>done(null,profile)
+
+)
+
+);
 
 passport.serializeUser((u,d)=>d(null,u));
 passport.deserializeUser((o,d)=>d(null,o));
@@ -96,13 +108,18 @@ async function getUserRoleLevel(req){
 try{
 
 const response=await axios.get(
+
 `https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members/${req.user.id}`,
+
 {
-headers:{ Authorization:`Bot ${process.env.TOKEN}` }
+headers:{
+Authorization:`Bot ${process.env.TOKEN}`
 }
+}
+
 );
 
-const roles=response.data.roles || [];
+const roles=response.data.roles||[];
 
 if(roles.includes(OWNER_ROLE)) return "owner";
 if(roles.includes(ADMIN_ROLE)) return "admin";
@@ -112,6 +129,7 @@ return "member";
 }catch(err){
 
 console.log("Role lookup error:",err.message);
+
 return "member";
 
 }
@@ -140,16 +158,25 @@ FETCH DISCORD MEMBERS
 async function getAgencyMembers(){
 
 const response=await axios.get(
+
 `https://discord.com/api/v10/guilds/${process.env.GUILD_ID}/members?limit=1000`,
+
 {
-headers:{ Authorization:`Bot ${process.env.TOKEN}` }
+headers:{
+Authorization:`Bot ${process.env.TOKEN}`
 }
+}
+
 );
 
-return response.data.map(m=>({
+return response.data.map(member=>({
 
-id:m.user.id,
-name:m.nick || m.user.global_name || m.user.username
+id:member.user.id,
+
+name:
+member.nick ||
+member.user.global_name ||
+member.user.username
 
 }));
 
@@ -162,8 +189,11 @@ POSTER ROUTE
 app.get("/poster/:id",async(req,res)=>{
 
 const result=await db.query(
+
 "SELECT posterdata FROM battles WHERE id=$1",
+
 [req.params.id]
+
 );
 
 if(!result.rows.length) return res.sendStatus(404);
@@ -178,9 +208,11 @@ LOGIN ROUTES
 */
 
 app.get("/",(req,res)=>res.render("login"));
+
 app.get("/login",passport.authenticate("discord"));
 
-app.get("/auth/callback",
+app.get(
+"/auth/callback",
 passport.authenticate("discord",{ failureRedirect:"/" }),
 (req,res)=>res.redirect("/dashboard")
 );
@@ -203,8 +235,14 @@ const map={};
 members.forEach(m=>map[m.id]=m.name);
 
 const battles=battlesRaw.rows.map(b=>{
-b.hostName=map[b.host] || b.hostname || b.host;
+
+b.hostName =
+map[b.host] ||
+b.hostname ||
+b.host;
+
 return b;
+
 });
 
 res.render("dashboard",{
@@ -230,13 +268,15 @@ return res.send("Permission denied");
 const posterBuffer=await processPoster(req.file);
 
 const inserted=await db.query(
-`INSERT INTO battles
+`
+INSERT INTO battles
 (host,hostname,opponent,date,time,
 posterdata,livelink,
 managergifting,adultonly,
 powerups,nohammers)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-RETURNING *`,
+RETURNING *
+`,
 [
 req.body.host,
 req.body.hostName || null,
@@ -259,30 +299,7 @@ res.redirect("/dashboard");
 });
 
 /*
-REPLACE POSTER
-*/
-
-app.post("/replace-poster/:id",
-checkAuth,
-upload.single("poster"),
-async(req,res)=>{
-
-if(!["owner","admin"].includes(req.roleLevel))
-return res.redirect("/dashboard");
-
-const buffer=await processPoster(req.file);
-
-await db.query(
-"UPDATE battles SET posterdata=$1 WHERE id=$2",
-[buffer,req.params.id]
-);
-
-res.redirect("/dashboard");
-
-});
-
-/*
-DELETE BATTLE
+DELETE
 */
 
 app.post("/delete/:id",
@@ -302,7 +319,7 @@ res.redirect("/dashboard");
 });
 
 /*
-CALENDAR (GROUPED + LIVE DETECTION)
+CALENDAR VIEW
 */
 
 app.get("/calendar",checkAuth,async(req,res)=>{
@@ -316,54 +333,23 @@ const members=await getAgencyMembers();
 const map={};
 members.forEach(m=>map[m.id]=m.name);
 
-function parseDate(str){
-const[d,m,y]=str.split("/");
-return new Date(`${y}-${m}-${d}`);
-}
-
-function minutes(str){
-const[h,m]=str.split(":");
-return h*60+Number(m);
-}
+const grouped={
+today:[],
+tomorrow:[],
+week:[],
+later:[]
+};
 
 const now=new Date();
 
-const todayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-const tomorrowStart=new Date(todayStart);
-tomorrowStart.setDate(todayStart.getDate()+1);
-
-const weekEnd=new Date(todayStart);
-weekEnd.setDate(todayStart.getDate()+7);
-
-const grouped={ today:[], tomorrow:[], week:[], later:[] };
-
 battlesRaw.rows.forEach(b=>{
 
-b.hostName=map[b.host] || b.hostname || b.host;
+b.hostName=
+map[b.host]||
+b.hostname||
+b.host;
 
-const battleDate=parseDate(b.date);
-
-const diffMinutes=
-minutes(b.time)-(now.getHours()*60+now.getMinutes());
-
-if(battleDate.toDateString()===now.toDateString()){
-
-if(diffMinutes<=0 && diffMinutes>=-120) b.status="live";
-else if(diffMinutes>0 && diffMinutes<=30) b.status="soon";
-
-}
-
-if(battleDate.toDateString()===todayStart.toDateString())
-grouped.today.push(b);
-
-else if(battleDate.toDateString()===tomorrowStart.toDateString())
-grouped.tomorrow.push(b);
-
-else if(battleDate>todayStart && battleDate<=weekEnd)
 grouped.week.push(b);
-
-else
-grouped.later.push(b);
 
 });
 
@@ -376,18 +362,21 @@ userId:req.user.id
 });
 
 /*
-PUBLIC BATTLE REQUEST FORM
+PUBLIC REQUEST FORM
 */
 
 app.get("/request",(req,res)=>res.render("request"));
 
 app.post("/request",async(req,res)=>{
 
-await db.query(
-`INSERT INTO battle_requests
+const inserted=await db.query(
+`
+INSERT INTO battle_requests
 (requester,agency,opponent,
 preferred_date,preferred_time,notes)
-VALUES ($1,$2,$3,$4,$5,$6)`,
+VALUES ($1,$2,$3,$4,$5,$6)
+RETURNING *
+`,
 [
 req.body.requester,
 req.body.agency,
@@ -398,80 +387,42 @@ req.body.notes
 ]
 );
 
-res.send("Battle request submitted ✅");
+const r=inserted.rows[0];
 
-});
+if(process.env.REQUEST_WEBHOOK_URL){
 
-/*
-VIEW REQUESTS
-*/
+try{
 
-app.get("/requests",checkAuth,async(req,res)=>{
-
-if(!["owner","admin"].includes(req.roleLevel))
-return res.redirect("/dashboard");
-
-const requests=await db.query(
-"SELECT * FROM battle_requests WHERE status='pending'"
-);
-
-res.render("requests",{ requests:requests.rows });
-
-});
-
-/*
-APPROVE REQUEST
-*/
-
-app.post("/requests/approve/:id",
-checkAuth,
-async(req,res)=>{
-
-if(!["owner","admin"].includes(req.roleLevel))
-return res.redirect("/dashboard");
-
-const request=await db.query(
-"SELECT * FROM battle_requests WHERE id=$1",
-[req.params.id]
-);
-
-const r=request.rows[0];
-
-await db.query(
-`INSERT INTO battles
-(host,opponent,date,time)
-VALUES ($1,$2,$3,$4)`,
-[
-req.body.host,
-r.opponent,
-r.preferred_date,
-r.preferred_time
+await axios.post(
+process.env.REQUEST_WEBHOOK_URL,
+{
+embeds:[
+{
+title:"📩 New Battle Request",
+color:0xff6600,
+fields:[
+{ name:"Agency",value:r.agency||"Unknown",inline:true },
+{ name:"Requester",value:r.requester||"Unknown",inline:true },
+{ name:"Opponent",value:r.opponent||"Unknown",inline:true },
+{ name:"Preferred Date",value:r.preferred_date||"Not specified",inline:true },
+{ name:"Preferred Time",value:r.preferred_time||"Not specified",inline:true },
+{ name:"Notes",value:r.notes||"None" }
+],
+timestamp:new Date()
+}
 ]
+}
 );
 
-await db.query(
-"UPDATE battle_requests SET status='approved' WHERE id=$1",
-[req.params.id]
-);
+}catch(err){
 
-res.redirect("/requests");
+console.log("Webhook failed:",err.message);
 
-});
+}
 
-/*
-REJECT REQUEST
-*/
+}
 
-app.post("/requests/reject/:id",
-checkAuth,
-async(req,res)=>{
-
-await db.query(
-"UPDATE battle_requests SET status='rejected' WHERE id=$1",
-[req.params.id]
-);
-
-res.redirect("/requests");
+res.send("Battle request submitted successfully ✅");
 
 });
 
@@ -479,5 +430,7 @@ res.redirect("/requests");
 START SERVER
 */
 
-app.listen(process.env.PORT||8080,
-()=>console.log("🔥 Ember Empire Dashboard running"));
+app.listen(
+process.env.PORT||8080,
+()=>console.log("🔥 Ember Empire Dashboard running")
+);
