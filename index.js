@@ -176,7 +176,7 @@ client.once("clientReady", () => {
 LOGIN
 */
 
-client.login(process.env.TOKEN)
+client.login(process.env.BOT_TOKEN)
   .then(() =>
     console.log("✅ Discord login successful")
   )
