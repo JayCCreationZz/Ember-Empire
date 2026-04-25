@@ -1,4 +1,4 @@
 node_modules
 emberempire.db
-.env
+env.env
 config.json
