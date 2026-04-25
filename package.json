@@ -4,7 +4,7 @@
   "description": "Ember Empire TikTok Battle Scheduler Dashboard + Discord Bot",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js & node dashboard/server.js"
+    "start": "node index.js && node dashboard/server.js"
   },
   "engines": {
     "node": ">=18"
@@ -12,7 +12,6 @@
   "dependencies": {
     "axios": "^1.15.0",
     "discord.js": "^14.14.1",
-    "dotenv": "^17.4.2",
     "ejs": "^3.1.10",
     "express": "^4.19.2",
     "express-session": "^1.19.0",
