@@ -1,5 +1,9 @@
 require("dotenv").config();
-
+const {
+  Client,
+  GatewayIntentBits,
+  EmbedBuilder
+} = require("discord.js");
 const express = require("express");
 const session = require("express-session");
 const passport = require("passport");
@@ -9,17 +13,33 @@ const sharp = require("sharp");
 const fs = require("fs");
 const axios = require("axios");
 
-const db = require("../database");
-const { postBattleNow } = require("../index");
-
+const db = require("../database")
 const app = express();
+const discordClient = new Client({
+  intents: [
+    GatewayIntentBits.Guilds
+  ]
+});
+
+discordClient.login(process.env.BOT_TOKEN)
+  .then(() =>
+    console.log(
+      "⚔️ Shadows Of Valhalla Dashboard Discord connected"
+    )
+  )
+  .catch(err =>
+    console.error(
+      "Discord login failed:",
+      err
+    )
+  );
 
 /*
 ROLE IDS
 */
 
-const OWNER_ROLE = "1439255505053683804";
-const ADMIN_ROLE = "1439256200658157588";
+const OWNER_ROLE = "1513865629076291614";
+const ADMIN_ROLE = "1513865629076291614";
 
 /*
 UPLOAD CONFIG
@@ -292,7 +312,88 @@ req.body.noHammers==="true"
 ]
 );
 
-await postBattleNow(inserted.rows[0]);
+try {
+
+  const battle = inserted.rows[0];
+
+  const channel =
+    await discordClient.channels.fetch(
+      process.env.BATTLE_CHANNEL_ID
+    );
+
+  if (channel) {
+
+    const embed =
+      new EmbedBuilder()
+
+      .setTitle(
+        "⚔️ Shadows Of Valhalla Battle Scheduled"
+      )
+
+      .setColor("#4B0082")
+
+      .addFields(
+
+        {
+          name: "Host",
+          value: `<@${battle.host}>`
+        },
+
+        {
+          name: "Opponent",
+          value: battle.opponent
+        },
+
+        {
+          name: "Date",
+          value: battle.date
+        },
+
+        {
+          name: "Time",
+          value: battle.time
+        }
+
+      )
+
+      .setTimestamp();
+
+    if (battle.livelink) {
+
+      embed.addFields({
+        name: "🛡️ Live Link",
+        value: battle.livelink
+      });
+
+    }
+
+    await channel.send({
+
+      content:
+        `⚔️ New Battle Scheduled\n<@${battle.host}>`,
+
+      embeds: [embed],
+
+      files:
+        battle.posterdata
+          ? [{
+              attachment: battle.posterdata,
+              name: "battle.jpg"
+            }]
+          : []
+
+    });
+
+  }
+
+} catch (err) {
+
+  console.error(
+    "Discord battle post failed:",
+    err
+  );
+
+}
 
 res.redirect("/dashboard");
 
@@ -431,6 +532,8 @@ START SERVER
 */
 
 app.listen(
-process.env.PORT||8080,
-()=>console.log("🔥 Ember Empire Dashboard running")
+  process.env.PORT || 8080,
+  () => console.log(
+    "⚔️ Shadows Of Valhalla Dashboard running"
+  )
 );

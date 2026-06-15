@@ -100,28 +100,22 @@ async function checkBattles() {
     const currentTime = getCurrentTime();
 
     const result = await db.query(
-
       `SELECT *
        FROM battles
-       WHERE posted = FALSE
-       OR posted IS NULL`
-
+       WHERE posted = FALSE`
     );
 
     const battles = result.rows;
 
     if (!battles.length) return;
 
-    const channel =
-      await client.channels.fetch(
-        process.env.BATTLE_CHANNEL_ID
-      );
+    const channel = await client.channels.fetch(
+      process.env.BATTLE_CHANNEL_ID
+    );
 
     if (!channel) {
-
       console.error("❌ Channel not found");
       return;
-
     }
 
     for (const battle of battles) {
@@ -134,11 +128,8 @@ async function checkBattles() {
         await postBattle(channel, battle);
 
         await db.query(
-
           "UPDATE battles SET posted = TRUE WHERE id = $1",
-
           [battle.id]
-
         );
 
       }
@@ -164,10 +155,10 @@ cron.schedule("* * * * *", checkBattles);
 BOT READY EVENT
 */
 
-client.once("clientReady", () => {
+client.once("ready", () => {
 
   console.log(
-    `🔥 Ember Empire Battle Bot online as ${client.user.tag}`
+    `Shadows Of Valhalla Battle Bot online as ${client.user.tag}`
   );
 
 });
